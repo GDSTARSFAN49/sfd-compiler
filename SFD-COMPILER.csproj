@@ -15,7 +15,11 @@
   <ItemGroup>
     <Reference Include="SFD.GameScriptInterface">
       <HintPath>SFD.GameScriptInterface.dll</HintPath>
+      <Private>True</Private>
     </Reference>
+    <None Include="SFD.GameScriptInterface.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
