@@ -9,14 +9,17 @@ sleep 1
 # Imprimimos un mensaje informativo en consola indicando el inicio del arranque de la API
 echo "Iniciando servidor API para pruebas..."
 
-# 1. Iniciamos la aplicacion web en segundo plano redirigiendo toda la salida estandar y de errores a nulo para mantener el entorno limpio
+# 1. Iniciamos la aplicacion web en segundo plano redirigiendo toda la salida a nulo
 dotnet run >/dev/null 2>&1 &
 
 # Capturamos el identificador unico (PID) del proceso del servidor web lanzado
 SERVER_PID=$!
 
-# Otorgamos un margen de tiempo prudencial para permitir que el servidor complete su inicializacion
-sleep 3
+# Bucle de espera activa (Health Check): Esperamos dinamicamente hasta que la API responda
+echo "Esperando a que el servidor este listo..."
+until curl -s http://localhost:8080/ > /dev/null; do
+  sleep 1
+done
 
 # Inicializamos el contador numerico para registrar el total de fallos detectados
 FALLOS=0
@@ -30,7 +33,7 @@ echo "=============================="
 for archivo in ./test/*; do
   
   # Verificamos fisicamente que el elemento sea un archivo regular y que no corresponda a este mismo script de shell
-  if [ -f "$archivo" ] && [[ "$archivo" != *.sh ]]; then
+  if [ -f "$archivo" ]; then
     
     # Imprimimos en pantalla el nombre del script actual que esta siendo evaluado
     echo -n "Probando: $(basename "$archivo") ... "
