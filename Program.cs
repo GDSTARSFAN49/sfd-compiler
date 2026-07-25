@@ -126,50 +126,12 @@ public class GameScript : GameScriptInterface {
 
     // Emitimos la compilacion hacia un flujo nulo, ya que solo queremos el analisis
     var resultadoCompilacion = sesionCompilacion.Emit(Stream.Null);
-
-    // Definimos un conjunto de cadenas con los nombres exactos de los eventos del juego
-    var eventosValidosJuego = new HashSet<string> {
-        "AfterStartup", "OnStartup", "OnPlayerDamage", "OnPlayerKill", 
-        "OnPlayerSpawn", "OnUserMessage", "OnPlayerKeyInput", "OnUpdate", "OnPlayerDead"
-    };
-
-    // Instanciamos una lista dinamica para guardar los errores tipograficos detectados
-    var erroresPersonalizados = new List<object>();
     
-    // Calculamos la compensacion de lineas debido a nuestra cabecera inyectada
+    // Definimos la compensacion de lineas por el envoltorio de la clase inyectada
     int compensacionCabecera = 11;
 
-    // Buscamos todas las declaraciones de metodos dentro de la raiz del arbol sintactico
-    var declaracionesMetodos = arbolSintactico.GetRoot().DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>();
-    
-    // Iteramos a traves de cada metodo encontrado en el codigo del usuario
-    foreach (var metodo in declaracionesMetodos)
-    {
-        // Extraemos el nombre en formato de texto puro del metodo actual
-        string nombreMetodo = metodo.Identifier.Text;
-        
-        // Evaluamos si el nombre del metodo cumple con los prefijos habituales de eventos
-        bool pareceEventoOficial = nombreMetodo.StartsWith("On") || nombreMetodo.StartsWith("After");
-
-        // Si tiene prefijo de evento pero no coincide exactamente con la lista oficial
-        if (pareceEventoOficial && !eventosValidosJuego.Contains(nombreMetodo))
-        {
-            // Obtenemos la posicion fisica de este metodo dentro del documento analizado
-            var ubicacionMetodo = metodo.Identifier.GetLocation().GetLineSpan();
-            
-            // Ajustamos el numero de linea restando el tamaño de nuestro envoltorio superior
-            int lineaReal = Math.Max(1, ubicacionMetodo.StartLinePosition.Line - compensacionCabecera);
-
-            // Añadimos el error a nuestra lista indicando un posible fallo tipografico
-            erroresPersonalizados.Add(new {
-                line = lineaReal,
-                message = $"El metodo '{nombreMetodo}' no es un evento valido de SFD. Comprueba si es un error tipografico."
-            });
-        }
-    }
-
     // Filtramos los diagnosticos de Roslyn quedandonos unicamente con los errores severos
-    var erroresRoslyn = resultadoCompilacion.Diagnostics
+    var listaCompletaErrores = resultadoCompilacion.Diagnostics
         .Where(diagnostico => diagnostico.Severity == DiagnosticSeverity.Error)
         .Select(error => {
             
@@ -184,13 +146,11 @@ public class GameScript : GameScriptInterface {
                 line = lineaReal, 
                 message = error.GetMessage() 
             };
-        });
+        })
+        .ToList();
 
-    // Concatenamos ambas listas de errores y materializamos el resultado en memoria
-    var listaCompletaErrores = erroresPersonalizados.Concat(erroresRoslyn).ToList();
-
-    // Si la compilacion nativa fue exitosa y no se encontraron errores manuales
-    if (resultadoCompilacion.Success && !erroresPersonalizados.Any())
+    // Si la compilacion nativa fue exitosa y no se encontraron errores
+    if (resultadoCompilacion.Success)
     {
         // Devolvemos un estado positivo junto a un arreglo vacio de errores
         return Results.Json(new { success = true, errors = Array.Empty<object>() });
