@@ -2,7 +2,7 @@
 name: Pruebas del Compilador SFD
 
 on:
-  # Ejecuta los tests cuando subas código a la rama dev
+  # Ejecuta los tests cuando subas codigo a la rama dev
   push:
     branches: [ "dev" ]
 
@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Clonar el repositorio en la máquina virtual
+      # Clonar el repositorio en la maquina virtual
       - name: Descargar codigo fuente
         uses: actions/checkout@v4
 
-      # Instalar el SDK de .NET (Ajusta la versión si no usas la 8.0)
+      # Instalar el SDK de .NET (Ajusta la version si no usas la 8.0)
       - name: Configurar entorno .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -30,9 +30,9 @@ jobs:
         run: dotnet restore
 
       # Compilar el proyecto entero
-      - name: Compilar el código
+      - name: Compilar el codigo
         run: dotnet build --no-restore
 
       # Ejecutar los tests
       - name: Ejecutar tests
-        run: bash test/test_scripts.sh
+        run: bash test_scripts.sh
