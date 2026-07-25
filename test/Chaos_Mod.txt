@@ -1,0 +1,3412 @@
+//HUGE THANKS TO NotBot FOR HELP WITH REWRITING THIS PIECE OF JUNK
+        public void OnStartup()
+        {
+            AllEvents.Initialise();
+        }
+        //MAIN CLASS
+        abstract class AllEvents
+        {
+            protected int[] BlacklistWpn = { 7, 13, 14, 15, 16, 21, 22, 32, 33, 34, 35, 36, 37, 38, 47, 48, 50, 51, 52, 58, 62, 63 };
+            protected static Random rng = new Random();
+
+            bool isEnabled = true;
+            protected bool isTimed = false;
+            static protected bool isNameHidden = false;
+            static protected bool isComboTime = false;
+            protected bool isMetaEvent = false;
+
+            Events.UpdateCallback timerCallback = null;
+            protected abstract string GetEffectName();
+            static List<AllEvents> allEvents = new List<AllEvents>();
+            protected static List<PlayerData> DefaultDataList = new List<PlayerData>();
+            //delay for timed effects
+            protected float delay = 0;
+            //time between each effect occuring
+            protected static float downtime = 20000;
+            //time between each META effect occuring
+            static float metadowntime = 55000;
+            protected void StartTimer()
+            {
+                timerCallback = Events.UpdateCallback.Start((dt) => { timerCallback = null; End(); EndAnnounce(); }, (uint)delay, 1);
+            }
+            protected void StartMetaTimer()
+            {
+                Events.UpdateCallback.Start((dt) => { End(); EndAnnounce(); }, (uint)delay, 1);
+            }
+            public static void StartRandomBasicEvent()
+            {
+                AllEvents[] validEvents = allEvents.Where((e) =>
+                {
+                    return !e.isMetaEvent && e.isEnabled;
+                }).ToArray();
+
+                for (int i = 0; i < (isComboTime ? 3 : 1); i++)
+                {
+                    int chosenEvent = rng.Next(validEvents.Length);
+                    validEvents[chosenEvent].Announce();
+                }
+
+                Events.UpdateCallback.Start((dt) =>
+                {
+                    StartRandomBasicEvent();
+                }, (uint)downtime, 1);
+            }
+            public static void StartMetaEvent()
+            {
+                AllEvents[] validMetaEvents = allEvents.Where((e) =>
+                {
+                    return e.isMetaEvent && e.isEnabled;
+                }).ToArray();
+                int chosenEvent = rng.Next(validMetaEvents.Length);
+                if (rng.Next(2) != 0)
+                    validMetaEvents[chosenEvent].AnnounceMeta();
+
+                Events.UpdateCallback.Start((dt) =>
+                {
+                    StartMetaEvent();
+                }, (uint)metadowntime, 1);
+            }
+
+            public static void Initialise()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    DefaultDataList.Add(new PlayerData(p));
+                allEvents.Add(new WhatsHappening() { delay = 55000, isMetaEvent = true, isTimed = true });
+                allEvents.Add(new ComboTime() { delay = 60000, isMetaEvent = true, isTimed = true });
+                allEvents.Add(new x2TimerSpeed() { delay = 45000, isMetaEvent = true, isTimed = true });
+                allEvents.Add(new x5TimerSpeed() { delay = 40000, isMetaEvent = true, isTimed = true });
+                allEvents.Add(new Nothing());
+                allEvents.Add(new OneHitKO() { delay = 25000, isTimed = true });
+                allEvents.Add(new GiveEveryoneBazooka());
+                allEvents.Add(new RemoveWeaponsFromEveryone());
+                allEvents.Add(new GiveOPWeapons());
+                allEvents.Add(new Invincibility() { delay = 15000, isTimed = true });
+                allEvents.Add(new UltimateForce() { delay = 15000, isTimed = true });
+                allEvents.Add(new X2GameSpeed() { delay = 15000, isTimed = true });
+                allEvents.Add(new X05GameSpeed() { delay = 10000, isTimed = true });
+                allEvents.Add(new X02GameSpeed() { delay = 8000, isTimed = true });
+                allEvents.Add(new SpawnRandomObject());
+                allEvents.Add(new RemoveSpawnedJunk());
+                allEvents.Add(new BlindMode() { delay = 15000, isTimed = true });
+                allEvents.Add(new RandomClothes());
+                allEvents.Add(new TeleportToRandomPlayer());
+                allEvents.Add(new InfiniteAmmo() { delay = 30000, isTimed = true });
+                allEvents.Add(new TimeForBreak() { delay = 8000, isTimed = true });
+                allEvents.Add(new ReviveDeadPlayers());
+                allEvents.Add(new ReviveDeadBots());
+                allEvents.Add(new GiveStreetsweeper());
+                allEvents.Add(new ExplosiveDeath() { delay = 30000, isTimed = true });
+                allEvents.Add(new Lag() { delay = 25000, isTimed = true });
+                allEvents.Add(new VirtualReality() { delay = 25000, isTimed = true });
+                allEvents.Add(new AirstrikeInbound() { delay = 25000, isTimed = true });
+                allEvents.Add(new PlayerSwap());
+                allEvents.Add(new GiveFiremanGear());
+                allEvents.Add(new SpawnMine());
+                allEvents.Add(new DisableStatusBars() { delay = 45000, isTimed = true });
+                allEvents.Add(new ClonePlayers());
+                allEvents.Add(new StripEveryone() { delay = 25000, isTimed = true });
+                allEvents.Add(new Earthquake() { delay = 10000, isTimed = true });
+                allEvents.Add(new RandomizeTeams());
+                allEvents.Add(new NoMoreTeams());
+                allEvents.Add(new MaxAmmo());
+                allEvents.Add(new ExplodeExplosive());
+                allEvents.Add(new JesusPower() { delay = 30000, isTimed = true });
+                allEvents.Add(new GiveRandomWeapon());
+                allEvents.Add(new SuperSprint() { delay = 15000, isTimed = true });
+                allEvents.Add(new NoSprint() { delay = 15000, isTimed = true });
+                allEvents.Add(new NoAim() { delay = 15000, isTimed = true });
+                allEvents.Add(new Regeneration() { delay = 15000, isTimed = true });
+                allEvents.Add(new WeaponRoulette() { delay = 30000, isTimed = true });
+                allEvents.Add(new Shields());
+                allEvents.Add(new ExplosiveEffect() { delay = 10000, isTimed = true });
+                allEvents.Add(new SpawnAngryFleecade());
+                allEvents.Add(new SpawnMetroLawSquad());
+                allEvents.Add(new SpawnKatanaMaster());
+                allEvents.Add(new IgniteEveryone());
+                allEvents.Add(new UntiedShoes() { delay = 25000, isTimed = true });
+                allEvents.Add(new Minions() { delay = 25000, isTimed = true });
+                allEvents.Add(new PainfulScreams() { delay = 25000, isTimed = true });
+                allEvents.Add(new ExplosiveBullets() { delay = 15000, isTimed = true });
+                allEvents.Add(new BigHitMarks() { delay = 25000, isTimed = true });
+                allEvents.Add(new TPGuns() { delay = 25000, isTimed = true });
+                allEvents.Add(new ImprovisedWeaponry() { delay = 25000, isTimed = true });
+                allEvents.Add(new PlayersAreBots() { delay = 15000, isTimed = true });
+                allEvents.Add(new ExplosivePunch() { delay = 10000, isTimed = true });
+                allEvents.Add(new WhoIsWho() { delay = 25000, isTimed = true });
+                allEvents.Add(new SpawnExplosiveSurprise());
+                allEvents.Add(new InfiniteEnergy() { delay = 15000, isTimed = true });
+                allEvents.Add(new Monochrome() { delay = 35000, isTimed = true });
+                allEvents.Add(new AlwaysCrits() { delay = 8000, isTimed = true });
+                allEvents.Add(new BreakableWeapons() { delay = 15000, isTimed = true});
+                allEvents.Add(new FurtherAway() { delay = 15000, isTimed = true });
+                allEvents.Add(new HealEveryone());
+                allEvents.Add(new StaticObjects() { delay = 15000, isTimed = true });
+                allEvents.Add(new ObliterateAllBots());
+                allEvents.Add(new TurnBotsIntoZombies());
+                allEvents.Add(new SupplyRifle());
+                allEvents.Add(new SupplyHealth());
+                allEvents.Add(new GiveCompanion());
+                allEvents.Add(new SupplyRain() { delay = 10000, isTimed = true });
+                allEvents.Add(new CrowdCheer() { delay = 25000, isTimed = true });
+                allEvents.Add(new OneBulletMags() { delay = 15000, isTimed = true });
+                allEvents.Add(new ChatKill() { delay = 15000, isTimed = true });
+                allEvents.Add(new JumpJump() { delay = 15000, isTimed = true });
+                allEvents.Add(new ReverseGravity() { delay = 10000, isTimed = true });
+                allEvents.Add(new Pillows() { delay = 15000, isTimed = true });
+                allEvents.Add(new OnlyRight() { delay = 15000, isTimed = true });
+                allEvents.Add(new OnlyLeft() { delay = 15000, isTimed = true });
+                allEvents.Add(new Sub2Fleecade());
+                allEvents.Add(new RandomHP() { delay = 15000, isTimed = true});
+                allEvents.Add(new ExplosiveBirds());
+                allEvents.Add(new FlareGuns() { delay = 20000, isTimed = true });
+                allEvents.Add(new Poison() { delay = 10000, isTimed = true });
+                allEvents.Add(new FrozenBullets() { delay = 20000, isTimed = true });
+                allEvents.Add(new PlayersDeflectBullets() { delay = 20000, isTimed = true });
+                allEvents.Add(new AimForTheSky() { delay = 20000, isTimed = true });
+                allEvents.Add(new HeavyBullets() { delay = 20000, isTimed = true });
+                allEvents.Add(new DespawnAllItems());
+                allEvents.Add(new PlayRandomMusic());
+                allEvents.Add(new UltraZoom() { delay = 15000, isTimed = true });
+                allEvents.Add(new SuperJumpKing() { delay = 15000, isTimed = true });
+                allEvents.Add(new RapidFire() { delay = 10000, isTimed = true });
+                allEvents.Add(new Bomberman() {delay = 10000, isTimed = true});
+                allEvents.Add(new RainbowWorld() {delay = 35000, isTimed = true});
+                //allEvents.Add(new PhantomObjects() {delay = 15000, isTimed = true});
+                allEvents.Add(new VehicleRain() {delay = 20000, isTimed = true});
+                allEvents.Add(new ZombieAttack() { delay = 20000, isTimed = true });
+                allEvents.Add(new KnockbackImmunity() { delay = 20000, isTimed = true});
+                for (int id = 0; id < allEvents.Count; id++)
+                {
+                    if (Game.LocalStorage.ContainsKey("event_" + id))
+                    {
+
+                        allEvents[id].delay = (float)Game.LocalStorage.GetItem("event_" + id);
+                    }
+                    if (Game.LocalStorage.ContainsKey("isEnabled_" + id))
+                    {
+                        allEvents[id].isEnabled = (bool)Game.LocalStorage.GetItem("isEnabled_" + id);
+                    }
+                }
+                if (Game.LocalStorage.ContainsKey("downtime"))
+                {
+                    downtime = (float)Game.LocalStorage.GetItem("downtime");
+                }
+                if (Game.LocalStorage.ContainsKey("metadowntime"))
+                {
+                    metadowntime = (float)Game.LocalStorage.GetItem("metadowntime");
+                }
+                ProfilesData();
+                Events.UpdateCallback.Start((dt) =>
+                {
+                    StartRandomBasicEvent();
+                }, (uint)downtime, 1);
+                Events.UpdateCallback.Start((dt) =>
+                {
+                    StartMetaEvent();
+                }, (uint)metadowntime, 1);
+                Events.UserMessageCallback.Start(CommandHandler);
+
+
+                Game.ShowChatMessage("Active effects are cleared every round!", new Color(120, 120, 120));
+                Game.ShowChatMessage("Type '/cm_commands' for available commands!", new Color(120, 120, 120));
+
+                Game.ShowPopupMessage(
+                "CHAOS MOD v.3.3.2\n" +
+                "SCRIPT MADE BY FLEECADE\n" +
+                "Random effect every " + downtime / 1000 + " seconds!\n",
+                new Color(128, 255, 0));
+
+                Events.UpdateCallback.Start((dt =>
+                {
+                    Game.HidePopupMessage();
+                }), 8000, 1);
+
+            }
+            public static void ChangeDelay(int id, float delay)
+            {
+                allEvents[id].delay = delay;
+                Game.LocalStorage.SetItem("event_" + id, delay);
+            }
+            public static void Toggle(int id, bool isEnabled)
+            {
+                allEvents[id].isEnabled = isEnabled;
+                Game.LocalStorage.SetItem("isEnabled_" + id, isEnabled);
+            }
+            virtual protected void Announce()
+            {
+                if (!isNameHidden)
+                {
+                    Game.ShowChatMessage("[CHAOS EFFECT]", Color.Green);
+                    string name = GetEffectName();
+                    if (delay > 0) name += " [" + delay / 1000 + "s]";
+                    Game.ShowChatMessage(name, new Color(0, 155, 255));
+                    Game.PlaySound("LogoSlam", Vector2.Zero);
+                }
+                if (timerCallback == null)
+                    Begin();
+                else
+                {
+                    timerCallback.Stop();
+                    StartTimer();
+                }
+            }
+            virtual protected void AnnounceMeta()
+            {
+                Game.ShowChatMessage("[CHAOS META]", Color.Red);
+                string name = GetEffectName();
+                if (delay > 0) name += " [" + delay / 1000 + "s]";
+                Game.ShowChatMessage(name, new Color(255, 0, 255));
+                Game.PlaySound("TutorialSuccess2", Vector2.Zero);
+                Game.ShowPopupMessage("[CHAOS META]\n" + GetEffectName() + " [" + delay / 1000 + "]\n", new Color(255, 0, 255));
+                Begin();
+            }
+            virtual protected void EndAnnounce()
+            {
+                if (!isMetaEvent)
+                {
+                    if (!isNameHidden)
+                    {
+                        Game.ShowChatMessage("'" + GetEffectName() + "' has ended!", new Color(255, 135, 0));
+                    }
+                }
+                else
+                {
+                    Game.HidePopupMessage();
+                    Game.ShowChatMessage("[META]'" + GetEffectName() + "' has ended!", new Color(180, 0, 255));
+                }
+            }
+            abstract protected void Begin();
+            virtual protected void End()
+            {
+
+            }
+
+            //PROFILES
+            protected static IProfile Fleecade = new IProfile();
+            protected static IProfile MetroLaw1 = new IProfile();
+            protected static IProfile MetroLaw2 = new IProfile();
+            protected static IProfile WhoProfile = new IProfile();
+            protected static IProfile katana = new IProfile();
+            protected static IProfile Companion = new IProfile();
+            protected static IProfile Zombie = new IProfile();
+            protected static void ProfilesData()
+            {
+                Fleecade.Skin = new IProfileClothingItem("Warpaint", "Skin5", "ClothingRed");
+                Fleecade.ChestOver = new IProfileClothingItem("MetroLawJacket", "ClothingRed", "ClothingRed");
+                Fleecade.Head = new IProfileClothingItem("Afro", "ClothingRed");
+                Fleecade.Hands = new IProfileClothingItem("Gloves", "ClothingRed");
+                Fleecade.Legs = new IProfileClothingItem("PantsBlack", "ClothingRed");
+                Fleecade.Feet = new IProfileClothingItem("ShoesBlack", "ClothingRed");
+                Fleecade.Accessory = new IProfileClothingItem("Balaclava", "ClothingRed");
+
+                Fleecade.Skin = new IProfileClothingItem("Warpaint", "Skin5", "ClothingRed");
+                Fleecade.ChestOver = new IProfileClothingItem("MetroLawJacket", "ClothingRed", "ClothingRed");
+                Fleecade.Head = new IProfileClothingItem("Afro", "ClothingRed");
+                Fleecade.Hands = new IProfileClothingItem("Gloves", "ClothingRed");
+                Fleecade.Legs = new IProfileClothingItem("PantsBlack", "ClothingRed");
+                Fleecade.Feet = new IProfileClothingItem("ShoesBlack", "ClothingRed");
+                Fleecade.Accessory = new IProfileClothingItem("Balaclava", "ClothingRed");
+
+                MetroLaw1.Head = new IProfileClothingItem("MetroLawMask", "ClothingLightGray", "ClothingLightYellow");
+                MetroLaw1.ChestOver = new IProfileClothingItem("MetroLawJacket", "ClothingLightGray", "ClothingGray");
+                MetroLaw1.Hands = new IProfileClothingItem("Gloves", "ClothingGray");
+                MetroLaw1.Waist = new IProfileClothingItem("SmallBelt", "ClothingGray", "ClothingYellow");
+                MetroLaw1.Legs = new IProfileClothingItem("CamoPants", "ClothingDarkGray", "ClothingGray");
+                MetroLaw1.Feet = new IProfileClothingItem("Boots", "ClothingDarkGray");
+                MetroLaw1.Accessory = new IProfileClothingItem("Mask", "ClothingGray");
+
+                MetroLaw2.Head = new IProfileClothingItem("MetroLawMask", "ClothingDarkGray", "ClothingLightCyan");
+                MetroLaw2.ChestOver = new IProfileClothingItem("MetroLawJacket", "ClothingDarkGray", "ClothingCyan");
+                MetroLaw2.Hands = new IProfileClothingItem("Gloves", "ClothingDarkGray");
+                MetroLaw2.Waist = new IProfileClothingItem("Belt", "ClothingGray", "ClothingGray");
+                MetroLaw2.Legs = new IProfileClothingItem("CamoPants", "ClothingDarkGray", "ClothingDarkGray");
+                MetroLaw2.Feet = new IProfileClothingItem("BootsBlack", "ClothingDarkGray");
+                MetroLaw2.Accessory = new IProfileClothingItem("Mask", "ClothingGray");
+
+                WhoProfile.Skin = new IProfileClothingItem("Warpaint", "Skin5", "ClothingGray");
+                WhoProfile.Accesory = new IProfileClothingItem("Balaclava", "ClothingGray");
+                WhoProfile.ChestOver = new IProfileClothingItem("MetroLawJacket", "ClothingGray", "ClothingGray");
+                WhoProfile.Hands = new IProfileClothingItem("GlovesBlack", "ClothingGray");
+                WhoProfile.Legs = new IProfileClothingItem("PantsBlack", "ClothingGray");
+                WhoProfile.Feet = new IProfileClothingItem("ShoesBlack", "ClothingGray");
+                WhoProfile.Head = new IProfileClothingItem("Afro", "ClothingGray");
+
+                katana.Skin = new IProfileClothingItem("Normal", "Skin4", "ClothingPink");
+                katana.ChestOver = new IProfileClothingItem("Robe", "ClothingLightGray");
+                katana.Head = new IProfileClothingItem("RiceHat", "ClothingYellow");
+                katana.Waist = new IProfileClothingItem("Sash", "ClothingDarkGray");
+                katana.Accessory = new IProfileClothingItem("SantaMask", "ClothingWhite");
+
+                Companion.Skin = new IProfileClothingItem("Normal", "Skin2", "ClothingPink");
+                Companion.ChestOver = new IProfileClothingItem("Poncho", "ClothingPurple", "ClothingYellow");
+                Companion.ChestUnder = new IProfileClothingItem("Shirt", "ClothingLightGray");
+                Companion.Legs = new IProfileClothingItem("Shorts", "ClothingCyan");
+                Companion.Feet = new IProfileClothingItem("Sneakers", "ClothingDarkPurple", "ClothingDarkGray");
+                Companion.Accessory = new IProfileClothingItem("ClownMakeup", "ClothingDarkBlue");
+
+                Zombie.Skin = new IProfileClothingItem("Zombie", "ClothingRed", "ClothingRed");
+                Zombie.ChestUnder = new IProfileClothingItem("TornShirt", "ClothingDarkPurple");
+                Zombie.Legs = new IProfileClothingItem("TornPants", "ClothingDarkBlue");
+            }
+
+            //COMMANDS
+            private static void CommandHandler(UserMessageCallbackArgs args)
+            {
+                if (args.IsCommand && (args.User.IsModerator || args.User.IsHost))
+                {
+                    switch (args.Command)
+                    {
+                        case "CM_INFO":
+                            {
+                                Game.ShowChatMessage("Chaos Mod v.3.3.2", Color.Cyan, args.User.UserIdentifier);
+                                Game.ShowChatMessage("Script made by: Fleecade with massive help from NotBot", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("Makes a random effect occur every x seconds", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("See '/CM_COMMANDS' for available commands", Color.Grey, args.User.UserIdentifier);
+                            }
+                            break;
+                        case "CM_COMMANDS":
+                            {
+                                Game.ShowChatMessage("CHAOS MOD COMMANDS:", Color.Cyan, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_info - view basic information about the script", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_commands - view script commands", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_effects - lists all available effects with corresponding IDs", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_timer <c/m> <miliseconds> - change the time it takes for new chaos or meta effects to appear automatically", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_delay <effectID> <miliseconds> - change the duration of selected timed effect", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_toggle <effectID> <1/0> - enable or disable certain effects from occuring (1 - enable, 0 - disable)", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_effect <effectID/random> - causes the chosen effect to happen immediately", Color.Grey, args.User.UserIdentifier);
+                                Game.ShowChatMessage("/cm_cj - removes all spawned junk - used to deal with potential softlocks", Color.Grey, args.User.UserIdentifier);
+                            }
+                            break;
+                        case "CM_DELAY":
+                            {
+                                string[] arguments = args.CommandArguments.Split(' ');
+                                if (arguments.Length == 2)
+                                {
+                                    float newDelay = 0;
+                                    if (float.TryParse(arguments[1], out newDelay))
+                                    {
+                                        int id = 0;
+                                        if (int.TryParse(arguments[0], out id))
+                                        {
+                                            if (id < allEvents.Count && id >= 0 && allEvents[id].isTimed)
+                                            {
+                                                if (newDelay < 2000)
+                                                    newDelay = 2000;
+                                                ChangeDelay(id, newDelay);
+                                                float delaynew = newDelay / 1000;
+                                                Game.ShowChatMessage("[CM] Delay for '" + allEvents[id].GetEffectName() + "' is set to " + delaynew.ToString(), Color.Green);
+                                            }
+                                            else
+                                                Game.ShowChatMessage("[CM] Invalid ID!", Color.Red, args.User.UserIdentifier);
+                                        }
+                                        else
+                                            Game.ShowChatMessage("[CM] Invalid ID!", Color.Red, args.User.UserIdentifier);
+                                    }
+                                    else
+                                        Game.ShowChatMessage("[CM] Use the following: '/cm_delay <effectID> <miliseconds>'", Color.Red, args.User.UserIdentifier);
+                                }
+                                else
+                                    Game.ShowChatMessage("[CM] Use the following: '/cm_delay <effectID> <miliseconds>'", Color.Red, args.User.UserIdentifier);
+                            }
+                            break;
+                        case "CM_TIMER":
+                            {
+                                Game.WriteToConsole(args.CommandArguments.ToString());
+                                string[] arguments = args.CommandArguments.Split(' ');
+                                if (arguments.Length == 2)
+                                {
+                                    switch (arguments[0].ToUpper())
+                                    {
+                                        case "C":
+                                            {
+                                                float temp = 0;
+                                                if (float.TryParse(arguments[1], out temp))
+                                                {
+                                                    downtime = temp;
+                                                    if (downtime < 5000)
+                                                    {
+                                                        downtime = 5000;
+                                                        Game.ShowChatMessage("[CM] New effects will occur every 5 seconds!", Color.Green);
+                                                        Game.LocalStorage.SetItem("downtime", downtime);
+                                                    }
+                                                    else
+                                                    {
+                                                        Game.ShowChatMessage("[CM] New effects will occur every " + downtime / 1000 + " seconds!", Color.Green);
+                                                        Game.LocalStorage.SetItem("downtime", downtime);
+                                                    }   
+                                                    
+                                                }
+                                                else
+                                                    Game.ShowChatMessage("[CM] Use the following: '/cm_timer <c/m> <miliseconds>'", Color.Red, args.User.UserIdentifier);
+                                            }
+                                            break;
+                                        case "M":
+                                            {
+                                                float temp = 0;
+                                                if (float.TryParse(arguments[1], out temp))
+                                                {
+                                                    metadowntime = temp;
+                                                    if (downtime < 10000)
+                                                    {
+                                                        downtime = 10000;
+                                                        Game.ShowChatMessage("[CM] New META effects will occur every 10 seconds!", Color.Green);
+                                                    }
+                                                    else
+                                                        Game.ShowChatMessage("[CM] New META effects will occur every " + metadowntime / 1000 + " seconds!", Color.Green);
+                                                    Game.LocalStorage.SetItem("metadowntime", metadowntime);
+                                                }
+                                                else
+                                                    Game.ShowChatMessage("[CM] Use the following: '/cm_timer <c/m> <miliseconds>'", Color.Red, args.User.UserIdentifier);
+                                            }
+                                            break;
+                                        default:
+                                            Game.ShowChatMessage("[CM] Use the following: '/cm_timer <c/m> <miliseconds>'", Color.Red, args.User.UserIdentifier);
+                                            break;
+                                    }
+                                }
+                                else
+                                    Game.ShowChatMessage("[CM] Use the following: '/cm_timer <c/m> <miliseconds>'", Color.Red, args.User.UserIdentifier);
+                            }
+                            break;
+                        case "CM_TOGGLE":
+                            {
+                                string[] arguments = args.CommandArguments.Split(' ');
+                                if (arguments.Length == 2)
+                                {
+                                    float newToggle = 0;
+                                    string enabled = "";
+                                    if (float.TryParse(arguments[1], out newToggle))
+                                    {
+                                        bool newisEnabled = false;
+                                        if (newToggle == 1)
+                                        {
+                                            newisEnabled = true;
+                                            enabled = "ENABLED";
+                                        }
+                                        else if (newToggle == 0)
+                                        {
+                                            newisEnabled = false;
+                                            enabled = "DISABLED";
+                                        }
+                                        else
+                                        {
+                                            Game.ShowChatMessage("[CM] This value can only be set to 0 or 1!'", Color.Red, args.User.UserIdentifier);
+                                            return;
+                                        }
+                                        int id = 0;
+                                        if (int.TryParse(arguments[0], out id))
+                                        {
+                                            if (id < allEvents.Count && id >= 0)
+                                            {
+                                                Toggle(id, newisEnabled);
+                                                Game.ShowChatMessage("[CM] Effect '" + allEvents[id].GetEffectName() + "' is now " + enabled, Color.Magenta);
+                                            }
+                                            else
+                                                Game.ShowChatMessage("[CM] Invalid ID!", Color.Red, args.User.UserIdentifier);
+                                        }
+                                    }
+                                }
+                                else
+                                    Game.ShowChatMessage("[CM] Use the following: /cm_toggle <effectID> <1/0>", Color.Red, args.User.UserIdentifier);
+                            }
+                            break;
+                        case "CM_EFFECT":
+                            {
+                                int id = 0;
+                                if (int.TryParse((args.CommandArguments), out id))
+                                {
+                                    if (id < allEvents.Count && id >= 0)
+                                    {
+                                        if (allEvents[id].isMetaEvent)
+                                            allEvents[id].AnnounceMeta();
+                                        else
+                                            allEvents[id].Announce();
+                                    }
+                                    else
+                                    {
+                                        Game.ShowChatMessage("[CM] Invalid ID!", Color.Red, args.User.UserIdentifier);
+                                    }
+                                }
+                                else if (args.CommandArguments.ToUpper() == "RANDOM")
+                                {
+                                    int chosenEvent = rng.Next(allEvents.Count);
+                                    if (allEvents[chosenEvent].isMetaEvent)
+                                        allEvents[chosenEvent].AnnounceMeta();
+                                    else
+                                        allEvents[chosenEvent].Announce();
+                                }
+                                else
+                                {
+                                    Game.ShowChatMessage("[CM] Invalid ID!", Color.Red, args.User.UserIdentifier);
+                                }
+                            }
+                            break;
+                        case "CM_EFFECTS":
+                            {
+                                Game.ShowChatMessage("[CM] Available effects:", Color.Cyan, args.User.UserIdentifier);
+                                for (int i = 0; i < allEvents.Count; i++)
+                                {
+                                    Game.ShowChatMessage(i + ". " + allEvents[i].GetEffectName(), Color.Yellow, args.User.UserIdentifier);
+                                }
+                            }
+                            break;
+                        case "CM_CJ":
+                            {
+                                
+                                foreach (IObject obj in Game.GetObjectsByCustomID("ChaosJunk"))
+                                {
+                                    if (obj == null)
+                                    {
+                                        Game.ShowChatMessage("[CM] There is no junk to remove", Color.Red, args.User.UserIdentifier);
+                                    }
+                                    else 
+                                    {
+                                        obj.Remove();
+                                        Game.ShowChatMessage("[CM] Spawned Junk has been removed", Color.Cyan);
+                                    }
+                                }
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+        }
+        //EFFECTS GO HERE
+        //META:
+        class WhatsHappening : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "What's Happening?";
+            }
+
+            protected override void Begin()
+            {
+                StartMetaTimer();
+                isNameHidden = true;
+            }
+            protected override void End()
+            {
+                isNameHidden = false;
+            }
+        }
+        class ComboTime : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Combo Time";
+            }
+            protected override void Begin()
+            {
+                StartMetaTimer();
+                isComboTime = true;
+            }
+            protected override void End()
+            {
+                isComboTime = false;
+            }
+        }
+        class x5TimerSpeed : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "x5 Timer Speed";
+            }
+            protected override void Begin()
+            {
+                downtime = downtime / 5;
+                StartMetaTimer();
+            }
+            protected override void End()
+            {
+                downtime = downtime * 5;
+            }
+        }
+        class x2TimerSpeed : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "x2 Timer Speed";
+            }
+            protected override void Begin()
+            {
+                downtime = downtime / 2;
+                StartMetaTimer();
+            }
+            protected override void End()
+            {
+                downtime = downtime * 2;
+            }
+        }
+
+        //NORMAL:
+        class Nothing : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Nothing";
+            }
+            protected override void Begin()
+            {
+            }
+        }
+        class OneHitKO : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "One Hit KO";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    if (p != null && !p.IsRemoved)
+                    {
+                        p.SetModifiers(new PlayerModifiers() { MaxHealth = 1 });
+                    }
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (PlayerData data in DefaultDataList)
+                    data.Player.SetModifiers(data.Mods);
+            }
+        }
+        class GiveEveryoneBazooka : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Give Everyone Bazooka";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.GiveWeaponItem(WeaponItem.BAZOOKA);
+            }
+        }
+        class RemoveWeaponsFromEveryone : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Remove Weapons From Everyone";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                {
+                    p.RemoveWeaponItemType(WeaponItemType.Handgun);
+                    p.RemoveWeaponItemType(WeaponItemType.Rifle);
+                    p.RemoveWeaponItemType(WeaponItemType.Thrown);
+                    p.RemoveWeaponItemType(WeaponItemType.Powerup);
+                    p.RemoveWeaponItemType(WeaponItemType.Melee);
+                }
+            }
+        }
+        class GiveOPWeapons : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Give Everyone OP Weapons";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                {
+                    p.GiveWeaponItem(WeaponItem.CHAINSAW);
+                    p.GiveWeaponItem(WeaponItem.MAGNUM);
+                    p.GiveWeaponItem(WeaponItem.M60);
+                    p.GiveWeaponItem(WeaponItem.SHURIKEN);
+                    p.GiveWeaponItem(WeaponItem.STRENGTHBOOST);
+                    p.SetCurrentPrimaryWeaponAmmo(100, 1, ProjectilePowerup.Fire);
+                    p.SetCurrentSecondaryWeaponAmmo(6, 1, ProjectilePowerup.Bouncing);
+                }
+            }
+        }
+        class Invincibility : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Invincibility";
+            }
+
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { ExplosionDamageTakenModifier = 0, ProjectileDamageTakenModifier = 0, FireDamageTakenModifier = 0, MeleeDamageTakenModifier = 0, ImpactDamageTakenModifier = 0 });
+
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { ExplosionDamageTakenModifier = 1, ProjectileDamageTakenModifier = 1, FireDamageTakenModifier = 1, MeleeDamageTakenModifier = 1, ImpactDamageTakenModifier = 1 });
+
+            }
+        }
+        class UltimateForce : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Ultimate Force";
+            }
+            protected override void Begin()
+            {
+                isTimed = true;
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.SetModifiers(new PlayerModifiers() { MeleeForceModifier = 10, ThrowForce = 10 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.SetModifiers(new PlayerModifiers() { MeleeForceModifier = 1, ThrowForce = 1 });
+            }
+        }
+        class X2GameSpeed : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "x2 Game Speed";
+            }
+            protected override void Begin()
+            {
+                Game.RunCommand("/settime 2");
+                StartTimer();
+            }
+            protected override void End()
+            {
+                Game.RunCommand("/settime 1");
+            }
+        }
+        class X05GameSpeed : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "x0.5 Game Speed";
+            }
+            protected override void Begin()
+            {
+                Game.RunCommand("/settime 0.5");
+                StartTimer();
+            }
+            protected override void End()
+            {
+                Game.RunCommand("/settime 1");
+            }
+        }
+        class X02GameSpeed : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "x0.2 Game Speed";
+            }
+            protected override void Begin()
+            {
+                Game.RunCommand("/settime 0.2");
+                StartTimer();
+            }
+            protected override void End()
+            {
+                Game.RunCommand("/settime 1");
+            }
+        }
+        class SpawnRandomObject : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Spawn Random Junk";
+            }
+            protected override void Begin()
+            {
+                IUser u;
+                int objectPos = 0;
+                string objectName = "";
+                u = Game.GetActiveUsers()[rng.Next(Game.GetActiveUsers().Length)];
+                IPlayer p;
+                p = u.GetPlayer();
+                if (p != null && !p.IsRemoved && !p.IsBot)
+                {
+                    if (p.FacingDirection == 1)
+                        objectPos = 40;
+                    else
+                        objectPos = -40;
+
+                    switch (rng.Next(10))
+                    {
+                        case 0:
+                            objectName = "Car01A";
+                            break;
+                        case 1:
+                            objectName = "SubwayTrain00";
+                            break;
+                        case 2:
+                            objectName = "SteamshipWheel00";
+                            break;
+                        case 3:
+                            objectName = "PoliceBlimp00";
+                            break;
+                        case 4:
+                            objectName = "CargoContainer00A";
+                            break;
+                        case 5:
+                            objectName = "AtlasStatue00Globe";
+                            break;
+                        case 6:
+                            objectName = "Dumpster00";
+                            break;
+                        case 7:
+                            objectName = "ConcretePipe01";
+                            break;
+                        case 8:
+                            objectName = "JusticeStatue00";
+                            break;
+                        case 9:
+                            objectName = "Helicopter00Wreck";
+                            break;
+                        default:
+                            break;
+                    }
+                    IObject obj = Game.CreateObject(objectName, p.GetWorldPosition() + new Vector2(objectPos, 0));
+                    obj.CustomID = "ChaosJunk";
+
+                }
+            }
+        }
+        class RemoveSpawnedJunk : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Remove Spawned Junk";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByCustomID("ChaosJunk"))
+                    obj.Remove();
+            }
+        }
+        class BlindMode : AllEvents
+        {
+            List<IObject> blind = new List<IObject>();
+            protected override string GetEffectName()
+            {
+                return "Blind Mode";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    Vector2 min = p.GetWorldPosition() + new Vector2(-5000, -5000);
+                    Vector2 max = p.GetWorldPosition() + new Vector2(5000, 5000);
+                    Area size = new Area(min, max);
+                    Vector2 pos = size.TopLeft;
+                    IObject obj = Game.CreateObject("FgShadow00A", pos - new Vector2(0, 0));
+                    obj.SetSizeFactor(new Point(10000, 10000));
+                    blind.Add(obj);
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+
+                blind.ForEach(b => b.Remove());
+                blind.Clear();
+            }
+        }
+        class RandomClothes : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Random Clothes";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    IProfile profile = p.GetProfile();
+                    profile.ChestUnder = GetRandomItem(Game.GetClothingItemNamesHands(profile.Gender));
+                    profile.Legs = GetRandomItem(Game.GetClothingItemNamesLegs(profile.Gender));
+                    profile.Waist = GetRandomItem(Game.GetClothingItemNamesWaist(profile.Gender));
+                    profile.Feet = GetRandomItem(Game.GetClothingItemNamesFeet(profile.Gender));
+                    profile.ChestOver = GetRandomItem(Game.GetClothingItemNamesChestOver(profile.Gender));
+                    profile.ChestUnder = GetRandomItem(Game.GetClothingItemNamesChestUnder(profile.Gender));
+                    profile.Accessory = GetRandomItem(Game.GetClothingItemNamesAccessory(profile.Gender));
+                    profile.Hands = GetRandomItem(Game.GetClothingItemNamesHands(profile.Gender));
+                    profile.Head = GetRandomItem(Game.GetClothingItemNamesHead(profile.Gender));
+                    Game.PlayEffect("EXP", p.GetWorldPosition());
+                    p.SetProfile(profile);
+                }
+            }
+            //clothing method:
+            protected IProfileClothingItem GetRandomItem(string[] items)
+            {
+                // a 20 % chance for nothing
+                if (rng.NextDouble() < 0.2f || items.Length == 0)
+                {
+                    return null;
+                }
+                string itemName = items[rng.Next(0, items.Length)];
+                string colorPalette = Game.GetClothingItemColorPaletteName(itemName);
+                ColorPalette cp = Game.GetColorPalette(colorPalette);
+                string colorA = "", colorB = "", colorC = "";
+                if (cp != null)
+                {
+                    colorA = (cp.PrimaryColorPackages != null && cp.PrimaryColorPackages.Length > 0 ? cp.PrimaryColorPackages[rng.Next(0, cp.PrimaryColorPackages.Length)] : "");
+                    colorB = (cp.SecondaryColorPackages != null && cp.SecondaryColorPackages.Length > 0 ? cp.SecondaryColorPackages[rng.Next(0, cp.SecondaryColorPackages.Length)] : "");
+                    colorC = (cp.TertiaryColorPackages != null && cp.TertiaryColorPackages.Length > 0 ? cp.TertiaryColorPackages[rng.Next(0, cp.TertiaryColorPackages.Length)] : "");
+                }
+                return new IProfileClothingItem(itemName, colorA, colorB, colorC);
+            }
+        }
+        class TeleportToRandomPlayer : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Teleport Everyone To a Random Player";
+            }
+            protected override void Begin()
+            {
+                IPlayer p = Game.GetPlayers()[rng.Next(Game.GetPlayers().Length)];
+                if (p != null && !p.IsRemoved)
+                {
+                    foreach (IPlayer p2 in Game.GetPlayers().Where(x => !x.IsDead))
+                        p2.SetWorldPosition(p.GetWorldPosition());
+                }
+            }
+        }
+        class InfiniteAmmo : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Infinite Ammo";
+            }
+            protected override void Begin()
+            {
+                Game.RunCommand("/ia 1");
+                StartTimer();
+            }
+            protected override void End()
+            {
+                Game.RunCommand("/ia 0");
+            }
+        }
+        class TimeForBreak : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "It's Time For a Break";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    p.SetInputEnabled(false);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    p.SetInputEnabled(true);
+            }
+        }
+        class ReviveDeadPlayers : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Revive Dead Players";
+            }
+            protected override void Begin()
+            {
+                foreach (IUser u in Game.GetActiveUsers().Where(x => !x.IsBot))
+                {
+                    IPlayer p = u.GetPlayer();
+                    if (p == null || p.IsDead)
+                    {
+                        IPlayer pR;
+                        IObject obj = Game.GetObjectsByName("SpawnPlayer")[rng.Next(Game.GetObjectsByName("SpawnPlayer").Length)];
+                        if (p != null)
+                            pR = (IPlayer)Game.CreatePlayer(p.GetWorldPosition());
+                        else
+                            pR = Game.CreatePlayer(obj.GetWorldPosition());
+                        pR.SetProfile(u.GetProfile());
+                        pR.SetTeam(u.GetTeam());
+                        pR.SetUser(u);
+                        if (p != null)
+                            p.Remove();
+                    }
+                }
+            }
+        }
+        class ReviveDeadBots : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Revive Dead Bots";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => x.IsBot))
+                {
+                    if (p != null || p.IsDead)
+                    {
+                        IPlayer pR;
+                        pR = (IPlayer)Game.CreatePlayer(p.GetWorldPosition());
+                        pR.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotB));
+                        pR.SetProfile(p.GetProfile());
+                        pR.SetModifiers(p.GetModifiers());
+                        pR.SetHealth(100);
+                        pR.SetNametagVisible(p.GetNametagVisible());
+                        pR.SetTeam(p.GetTeam());
+                        pR.SetBotName(p.Name);
+                        p.Remove();
+                    }
+                }
+            }
+        }
+        class GiveStreetsweeper : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Give Everyone a Streetsweeper";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                {
+                    IObjectStreetsweeper drone = (IObjectStreetsweeper)Game.CreateObject("Streetsweeper", p.GetWorldPosition() + new Vector2(30, 0));
+                    drone.SetOwnerPlayer(p);
+                }
+            }
+        }
+        class ExplosiveDeath : AllEvents
+        {
+            Events.PlayerDeathCallback deathCallback = null;
+            protected override string GetEffectName()
+            {
+                return "Explosive Death";
+            }
+            protected override void Begin()
+            {
+                deathCallback = Events.PlayerDeathCallback.Start(PlayerExplode);
+
+                StartTimer();
+            }
+            protected void PlayerExplode(IPlayer p, PlayerDeathArgs args)
+            {
+                Game.TriggerExplosion(p.GetWorldPosition());
+            }
+            protected override void End()
+            {
+                deathCallback.Stop();
+            }
+        }
+        class Lag : AllEvents
+        {
+            Events.UpdateCallback update1 = null;
+            Events.UpdateCallback update2 = null;
+            protected override string GetEffectName()
+            {
+                return "Lag";
+            }
+            protected override void Begin()
+            {
+                List<PlayerData> DataList = new List<PlayerData>();
+                update1 = Events.UpdateCallback.Start((dt) =>
+                    {
+                        var tempList = new List<PlayerData>();
+                        foreach (IPlayer p in Game.GetPlayers())
+                        {
+                            if (p != null && !p.IsRemoved)
+                            {
+                                var data = new PlayerData(p);
+
+                                tempList.Add(data);
+                            }
+                        }
+                        DataList = tempList;
+
+                    }, 1000);
+                update2 = Events.UpdateCallback.Start((dt) =>
+                {
+                    foreach (PlayerData data in DataList)
+                    {
+                        data.Player.SetWorldPosition(data.Position);
+                        data.Player.SetModifiers(data.Mods);
+                        data.Player.GiveWeaponItem(data.MeleeWpn.WeaponItem);
+                        data.Player.GiveWeaponItem(data.MakeshiftWpn.WeaponItem);
+                        data.Player.GiveWeaponItem(data.RifleWpn.WeaponItem);
+                        data.Player.GiveWeaponItem(data.HandgunWpn.WeaponItem);
+                        data.Player.GiveWeaponItem(data.ThrownWpn.WeaponItem);
+                        data.Player.SetTeam(data.Team);
+                        data.Player.SetProfile(data.Profile);
+                        data.Player.SetNametagVisible(data.Nametag);
+                        data.Player.SetStatusBarsVisible(data.Statusbars);
+                        data.Player.SetCurrentPrimaryWeaponAmmo(data.AmmoPrimary);
+                        data.Player.SetCurrentSecondaryWeaponAmmo(data.AmmoSecondary);
+                        data.Player.SetCurrentThrownItemAmmo(data.AmmoThrown);
+                        data.Player.SetHitEffect(data.HitEffect);
+                    }
+                }, 1600);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update1.Stop();
+                update2.Stop();
+            }
+
+        }
+        class VirtualReality : AllEvents
+        {
+            List<PlayerData> DataList = new List<PlayerData>();
+            protected override string GetEffectName()
+            {
+                return "Virtual Reality";
+            }
+            protected override void Begin()
+            {
+
+                var tempList = new List<PlayerData>();
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    if (p != null && !p.IsRemoved)
+                    {
+                        var data = new PlayerData(p);
+
+                        tempList.Add(data);
+                    }
+                }
+                DataList = tempList;
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (PlayerData data in DataList)
+                {
+                    data.Player.SetWorldPosition(data.Position);
+                    data.Player.SetModifiers(data.Mods);
+                    data.Player.GiveWeaponItem(data.MeleeWpn.WeaponItem);
+                    data.Player.GiveWeaponItem(data.MakeshiftWpn.WeaponItem);
+                    data.Player.GiveWeaponItem(data.RifleWpn.WeaponItem);
+                    data.Player.GiveWeaponItem(data.HandgunWpn.WeaponItem);
+                    data.Player.GiveWeaponItem(data.ThrownWpn.WeaponItem);
+                    data.Player.SetTeam(data.Team);
+                    data.Player.SetProfile(data.Profile);
+                    data.Player.SetNametagVisible(data.Nametag);
+                    data.Player.SetStatusBarsVisible(data.Statusbars);
+                    data.Player.SetCurrentPrimaryWeaponAmmo(data.AmmoPrimary);
+                    data.Player.SetCurrentSecondaryWeaponAmmo(data.AmmoSecondary);
+                    data.Player.SetCurrentThrownItemAmmo(data.AmmoThrown);
+                    data.Player.SetHitEffect(data.HitEffect);
+                }
+            }
+        }
+        class AirstrikeInbound : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Airstrike Inbound";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt) =>
+                {
+
+                    IPlayer p = Game.GetPlayers()[rng.Next(Game.GetPlayers().Length)];
+                    if (p != null && !p.IsRemoved)
+                    {
+                        Game.SpawnProjectile(ProjectileItem.BAZOOKA, p.GetWorldPosition() + new Vector2(30, 480), new Vector2(1, -180));
+                    }
+                }, 4000);
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class PlayerSwap : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Player Swap";
+            }
+            protected override void Begin()
+            {
+                IPlayer[] Players;
+                Players = Game.GetPlayers().Where(x => (x != null && !x.IsDead && !x.IsRemoved)).ToArray();
+                //Randomize the player list
+                IPlayer[] RandomizedPlayers = Players.OrderBy(x => rng.Next()).ToArray();
+                //Save last user in list
+                IUser lastUser = RandomizedPlayers[RandomizedPlayers.Length - 1].GetUser();
+                IUser tempUser;
+                for (int i = 0; i < RandomizedPlayers.Length; i++)
+                {
+                    //Save current players user to temp
+                    tempUser = RandomizedPlayers[i].GetUser();
+                    //Set last user to current player
+                    RandomizedPlayers[i].SetUser(lastUser);
+                    //Save temp user to last user
+                    lastUser = tempUser;
+                }
+            }
+        }
+        class GiveFiremanGear : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Give Everyone a Fireman Gear";
+            }
+            protected override void Begin()
+            {
+
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                {
+                    p.GiveWeaponItem(WeaponItem.FLAREGUN);
+                    p.GiveWeaponItem(WeaponItem.FLAMETHROWER);
+                    p.GiveWeaponItem(WeaponItem.MOLOTOVS);
+                    p.GiveWeaponItem(WeaponItem.AXE);
+                }
+            }
+        }
+        class SpawnMine : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Spawn a Mine Below Everyone";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    Game.CreateObject("WpnMineThrown", p.GetWorldPosition());
+                }
+            }
+        }
+        class DisableStatusBars : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Disable Status Bars";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetStatusBarsVisible(false);
+
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (PlayerData data in DefaultDataList)
+                    data.Player.SetStatusBarsVisible(data.statusbars);
+            }
+        }
+        class ClonePlayers : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Clone Players";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead && !x.IsBot))
+                {
+                    IProfile clone = p.GetUser().GetProfile();
+                    IPlayer plr = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(40, 0));
+                    plr.SetHealth(p.GetHealth());
+                    plr.SetBotName(p.Name);
+                    plr.SetTeam(p.GetTeam());
+                    plr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotA));
+                    plr.SetProfile(clone);
+                    plr.SetModifiers(p.GetModifiers());
+                    plr.GiveWeaponItem(p.CurrentMeleeWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentMeleeMakeshiftWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentPrimaryWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentSecondaryWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentPowerupItem.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentThrownItem.WeaponItem);
+                    plr.SetCurrentPrimaryWeaponAmmo(p.CurrentPrimaryWeapon.TotalAmmo);
+                    plr.SetCurrentSecondaryWeaponAmmo(p.CurrentSecondaryWeapon.TotalAmmo);
+                    plr.SetCurrentThrownItemAmmo(p.CurrentThrownItem.CurrentAmmo);
+                }
+            }
+        }
+        class StripEveryone : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Strip Everyone";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    IProfile Nude = new IProfile();
+                    Nude.Skin = p.GetProfile().Skin;
+                    Nude.Gender = p.GetProfile().Gender;
+                    Game.PlayEffect("EXP", p.GetWorldPosition());
+                    p.SetProfile(Nude);
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                {
+                    p.SetProfile(p.GetUser().GetProfile());
+                    Game.PlayEffect("EXP", p.GetWorldPosition());
+                }
+            }
+        }
+        class Earthquake : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Earthquake";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt) =>
+                {
+                    Game.PlayEffect("CAM_S", Vector2.Zero, 13f, 2050f, true);
+                    Game.PlaySound("Madness", Vector2.Zero);
+                }, 500);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class RandomizeTeams : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Randomize Teams";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    p.SetTeam((PlayerTeam)rng.Next(1, 8));
+                }
+            }
+        }
+        class NoMoreTeams : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "No More Teams";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetTeam(PlayerTeam.Independent);
+            }
+        }
+        class MaxAmmo : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Add Max Ammo To Current Weapons";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                {
+                    p.SetCurrentPrimaryWeaponAmmo(100, 100);
+                    p.SetCurrentSecondaryWeaponAmmo(100, 100);
+                }
+            }
+        }
+        class ExplodeExplosive : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Explode Every Explosive";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByName(new string[] { "BarrelExplosive", "BarrelWreck", "PropaneTank" }))
+                    Game.TriggerExplosion(obj.GetWorldPosition());
+            }
+        }
+        class JesusPower : AllEvents
+        {
+            List<IObject> ind = new List<IObject>();
+            protected override string GetEffectName()
+            {
+                return "Jesus Power";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByName(new string[] { "Water00A", "Acid00A" }))
+                {
+                    Vector2 pos = obj.GetWorldPosition();
+                    IObject waterwalk = (IObject)Game.CreateObject("Glass00D", pos - new Vector2(0, 3));
+                    waterwalk.SetSizeFactor(obj.GetSizeFactor());
+                    ind.Add(waterwalk);
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                ind.ForEach(b => b.Remove());
+                ind.Clear();
+            }
+        }
+        class GiveRandomWeapon : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Give Everyone a Random Weapon";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                {
+                    int num;
+                    do
+                    {
+                        num = rng.Next(1, 65);
+                    }
+                    while (BlacklistWpn.Contains(num));
+                    p.GiveWeaponItem((WeaponItem)num);
+                }
+            }
+        }
+        class SuperSprint : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Super Sprint";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        Game.PlayEffect("TR_B", p.GetWorldPosition());
+                        Game.PlayEffect("GLM", p.GetWorldPosition());
+                    }
+                }
+                ), 1);
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { SprintSpeedModifier = 2 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { SprintSpeedModifier = 1 });
+            }
+        }
+        class NoSprint : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "No Sprint";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { SprintSpeedModifier = 0 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { SprintSpeedModifier = 1 });
+            }
+        }
+        class NoAim : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            Events.UpdateCallback update1 = null;
+            protected override string GetEffectName()
+            {
+                return "No Aim";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        if (p.IsManualAiming)
+                        {
+                            p.SetInputEnabled(false);
+                            p.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+                        }
+                    }
+                }
+                ), 1);
+                update1 = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                        p.SetInputEnabled(true);
+                }
+                ), 40);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+                update1.Stop();
+            }
+        }
+        class Regeneration : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Regeneration";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                        p.SetHealth(p.GetModifiers().CurrentHealth + 2);
+                }
+                ), 420);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class WeaponRoulette : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Weapon Roulette";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    {
+                        p.RemoveWeaponItemType(WeaponItemType.Rifle);
+                        p.RemoveWeaponItemType(WeaponItemType.Melee);
+                        p.RemoveWeaponItemType(WeaponItemType.Thrown);
+                        p.RemoveWeaponItemType(WeaponItemType.Handgun);
+                        int num;
+                        do
+                        {
+                            num = rng.Next(1, 65);
+                        }
+                        while (BlacklistWpn.Contains(num));
+                        p.GiveWeaponItem((WeaponItem)num);
+                    }
+                }
+                ), 4000);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class Shields : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Shields";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                {
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(8, 40));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(-8, 40));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(24, 24));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(24, 8));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(-24, 24));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(-24, 8));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(8, -8));
+                    Game.CreateObject("StoneWeak00C", p.GetWorldPosition() + new Vector2(-8, -8));
+                }
+            }
+        }
+        class ExplosiveEffect : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Explosive Effect";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        Game.PlayEffect("EXP", p.GetWorldPosition());
+                        Game.PlaySound("Explosion", p.GetWorldPosition());
+                    }
+
+                }), 10);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class SpawnAngryFleecade : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Spawn Angry Fleecade";
+            }
+            protected override void Begin()
+            {
+                IUser u;
+                int Pos = 0;
+                u = Game.GetActiveUsers()[rng.Next(Game.GetActiveUsers().Length)];
+                IPlayer p;
+                p = u.GetPlayer();
+                if (p != null && !p.IsRemoved && !p.IsBot)
+                {
+                    if (p.FacingDirection == 1)
+                        Pos = 40;
+                    else
+                        Pos = -40;
+                    IPlayer plr = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(Pos, 0));
+                    plr.SetBotName("Fleecade");
+                    plr.GiveWeaponItem(WeaponItem.BAZOOKA);
+                    plr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotB));
+                    plr.SetProfile(Fleecade);
+                }
+            }
+        }
+        class SpawnMetroLawSquad : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Spawn MetroLaw Squad";
+            }
+            protected override void Begin()
+            {
+                IUser u;
+                u = Game.GetActiveUsers()[rng.Next(Game.GetActiveUsers().Length)];
+                IPlayer p;
+                p = u.GetPlayer();
+                if (p != null && !p.IsRemoved && !p.IsBot)
+                {
+                    IPlayer plr = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(20, 0));
+                    IPlayer plr1 = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(30, 0));
+                    IPlayer plr2 = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(40, 0));
+                    IPlayer plr3 = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(50, 0));
+                    plr.SetNametagVisible(false);
+                    plr1.SetNametagVisible(false);
+                    plr2.SetNametagVisible(false);
+                    plr3.SetNametagVisible(false);
+                    plr.SetTeam(PlayerTeam.Team4);
+                    plr1.SetTeam(PlayerTeam.Team4);
+                    plr2.SetTeam(PlayerTeam.Team4);
+                    plr3.SetTeam(PlayerTeam.Team4);
+                    plr.GiveWeaponItem(WeaponItem.MACHINE_PISTOL);
+                    plr1.GiveWeaponItem(WeaponItem.MP50);
+                    plr2.GiveWeaponItem(WeaponItem.DARK_SHOTGUN);
+                    plr3.GiveWeaponItem(WeaponItem.PISTOL45);
+                    plr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotD));
+                    plr1.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotC));
+                    plr2.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotC));
+                    plr3.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotD));
+                    plr.SetModifiers(new PlayerModifiers() { MaxHealth = 35, CurrentHealth = 35, MaxEnergy = 70, CurrentEnergy = 70, ProjectileDamageDealtModifier = 0.4F, MeleeDamageDealtModifier = 0.4F });
+                    plr1.SetModifiers(new PlayerModifiers() { MaxHealth = 45, CurrentHealth = 45, MaxEnergy = 70, CurrentEnergy = 70, ProjectileDamageDealtModifier = 0.34F, MeleeDamageDealtModifier = 0.34F, RunSpeedModifier = 0.7F, SprintSpeedModifier = 0.7F });
+                    plr2.SetModifiers(new PlayerModifiers() { MaxHealth = 45, CurrentHealth = 45, MaxEnergy = 70, CurrentEnergy = 70, ProjectileDamageDealtModifier = 0.34F, MeleeDamageDealtModifier = 0.34F, RunSpeedModifier = 0.7F, SprintSpeedModifier = 0.7F });
+                    plr3.SetModifiers(new PlayerModifiers() { MaxHealth = 35, CurrentHealth = 35, MaxEnergy = 70, CurrentEnergy = 70, ProjectileDamageDealtModifier = 0.4F, MeleeDamageDealtModifier = 0.4F });
+                    plr.SetProfile(MetroLaw1);
+                    plr1.SetProfile(MetroLaw2);
+                    plr2.SetProfile(MetroLaw2);
+                    plr3.SetProfile(MetroLaw1);
+                }
+            }
+        }
+        class SpawnKatanaMaster : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Spawn Katana Master";
+            }
+            protected override void Begin()
+            {
+                IUser u;
+                u = Game.GetActiveUsers()[rng.Next(Game.GetActiveUsers().Length)];
+                IPlayer p;
+                p = u.GetPlayer();
+                if (p != null && !p.IsRemoved && !p.IsBot)
+                {
+                    int Pos = 0;
+                    if (p.FacingDirection == 1)
+                        Pos = 40;
+                    else
+                        Pos = -40;
+                    IPlayer plr = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(Pos, 0));
+                    plr.SetBotName("Katana Master");
+                    plr.GiveWeaponItem(WeaponItem.KATANA);
+                    plr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.MeleeA));
+                    plr.SetProfile(katana);
+                    plr.SetModifiers(new PlayerModifiers() { RunSpeedModifier = 2, SprintSpeedModifier = 2 });
+                }
+            }
+        }
+        class IgniteEveryone : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Ignite Everyone";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    Game.TriggerFireplosion(p.GetWorldPosition());
+            }
+        }
+        class UntiedShoes : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            Events.UpdateCallback update1 = null;
+            IPlayer p;
+            protected override string GetEffectName()
+            {
+                return "Untied Shoes";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    p = Game.GetPlayers()[rng.Next(Game.GetPlayers().Length)];
+                    p.SetInputEnabled(false);
+                    p.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+                }
+                ), 1500);
+                update1 = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer pl in Game.GetPlayers())
+                        pl.SetInputEnabled(true);
+                }
+                ), 1540);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+                update1.Stop();
+            }
+        }
+        class Minions : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Minions";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { SizeModifier = 0.75f });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { SizeModifier = 1 });
+            }
+        }
+        class PainfulScreams : AllEvents
+        {
+            Events.PlayerDamageCallback damage = null;
+            protected override string GetEffectName()
+            {
+                return "Painful Screams";
+            }
+            protected override void Begin()
+            {
+                damage = Events.PlayerDamageCallback.Start(OnPlayerDamage);
+                StartTimer();
+            }
+            void OnPlayerDamage(IPlayer p, PlayerDamageArgs args)
+            {
+                Game.PlaySound("CartoonScream", Vector2.Zero);
+                Game.PlaySound("Wilhelm", Vector2.Zero);
+                Game.PlayEffect("STM", p.GetWorldPosition());
+            }
+            protected override void End()
+            {
+                damage.Stop();
+            }
+        }
+        class ExplosiveBullets : AllEvents
+        {
+            Events.ProjectileHitCallback hit = null;
+            protected override string GetEffectName()
+            {
+                return "Explosive Bullets";
+            }
+            protected override void Begin()
+            {
+                hit = Events.ProjectileHitCallback.Start(OnProjectileHit);
+                StartTimer();
+            }
+            void OnProjectileHit(IProjectile proj, ProjectileHitArgs args)
+            {
+                Game.TriggerExplosion(proj.Position);
+            }
+            protected override void End()
+            {
+                hit.Stop();
+            }
+        }
+
+        class BigHitMarks : AllEvents
+        {
+            List<IObject> ind = new List<IObject>();
+            Events.ProjectileHitCallback hit = null;
+            protected override string GetEffectName()
+            {
+                return "Big Hit Marks";
+            }
+            protected override void Begin()
+            {
+                hit = Events.ProjectileHitCallback.Start(OnProjectileHit);
+                StartTimer();
+            }
+            void OnProjectileHit(IProjectile proj, ProjectileHitArgs args)
+            {
+                IObject obj = (IObject)Game.CreateObject("SteamSpawner", proj.Position);
+                IObjectText objj = (IObjectText)Game.CreateObject("Text", proj.Position + new Vector2(0, 40));
+                objj.SetText(".");
+                objj.SetTextScale(16);
+                objj.SetTextAlignment(TextAlignment.Middle);
+                objj.SetTextColor(Color.Red);
+                ind.Add(obj);
+                ind.Add(objj);
+            }
+            protected override void End()
+            {
+                ind.ForEach(b => b.Remove());
+                ind.Clear();
+                hit.Stop();
+            }
+        }
+        class TPGuns : AllEvents
+        {
+            Events.ProjectileHitCallback hit = null;
+            protected override string GetEffectName()
+            {
+                return "Teleport Guns";
+            }
+            protected override void Begin()
+            {
+                hit = Events.ProjectileHitCallback.Start(OnProjectileHit);
+                StartTimer();
+            }
+            void OnProjectileHit(IProjectile proj, ProjectileHitArgs args)
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    if (proj.OwnerPlayerID == p.UniqueID)
+                    {
+                        p.SetWorldPosition(proj.Position);
+                    }
+                }
+            }
+            protected override void End()
+            {
+                hit.Stop();
+            }
+        }
+        class ImprovisedWeaponry : AllEvents
+        {
+            Events.ProjectileCreatedCallback created = null;
+            protected override string GetEffectName()
+            {
+                return "Improvised Weaponry";
+            }
+            protected override void Begin()
+            {
+                created = Events.ProjectileCreatedCallback.Start(OnProjectileCreated);
+                StartTimer();
+            }
+            void OnProjectileCreated(IProjectile[] projectiles)
+            {
+                foreach (IProjectile proj in projectiles)
+                {
+                    string ObjectName = "";
+                    IPlayer p = Game.GetPlayer(proj.OwnerPlayerID);
+                    Game.PlayEffect("S_P", proj.Position);
+                    switch (rng.Next(29))
+                    {
+                        case 0: { ObjectName = "Crate00"; } break;
+                        case 1: { ObjectName = "Crate01"; } break;
+                        case 2: { ObjectName = "Crate02"; } break;
+                        case 3: { ObjectName = "Barrel00"; } break;
+                        case 4: { ObjectName = "BarrelExplosive"; } break;
+                        case 5: { ObjectName = "PropaneTank"; } break;
+                        case 6: { ObjectName = "Computer00"; } break;
+                        case 7: { ObjectName = "Balloon00"; } break;
+                        case 8: { ObjectName = "Monitor00"; } break;
+                        case 9: { ObjectName = "CardboardBox00"; } break;
+                        case 10: { ObjectName = "ComfyChair"; } break;
+                        case 11: { ObjectName = "CrabCan00"; } break;
+                        case 12: { ObjectName = "Gascan00"; } break;
+                        case 13: { ObjectName = "Dove00"; } break;
+                        case 14: { ObjectName = "FileCab00"; } break;
+                        case 15: { ObjectName = "StreetsweeperCrate"; } break;
+                        case 16: { ObjectName = "XmasPresent00"; } break;
+                        case 17: { ObjectName = "WpnGrenadesThrown"; } break;
+                        case 18: { ObjectName = "WpnMineThrown"; } break;
+                        case 19: { ObjectName = "WpnMagnum"; } break;
+                        case 20: { ObjectName = "CarWheel01"; } break;
+                        case 21: { ObjectName = "SawBlade00"; } break;
+                        case 22: { ObjectName = "Chair00"; } break;
+                        case 23: { ObjectName = "Baseball"; } break;
+                        case 24: { ObjectName = "Trashbag00"; } break;
+                        case 25: { ObjectName = "WpnBazooka"; } break;
+                        case 26: { ObjectName = "WpnKnife"; } break;
+                        case 27: { ObjectName = "SupplyCrate00"; } break;
+                        case 28: { ObjectName = "WpnM60"; } break;
+                        default:
+                            break;
+                    }
+                    Game.CreateObject(ObjectName, proj.Position + new Vector2(7, 7), 0, proj.Velocity / 60, 0);
+                    proj.FlagForRemoval();
+                }
+            }
+            protected override void End()
+            {
+                created.Stop();
+            }
+        }
+        class PlayersAreBots : AllEvents
+        {
+            List<IObject> ind = new List<IObject>();
+            List<IPlayer> ind2 = new List<IPlayer>();
+            protected override string GetEffectName()
+            {
+                return "Players are Bots";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                {
+                    p.SetInputEnabled(false);
+                    p.SetNametagVisible(false);
+                    p.SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+
+                    IObject invis = (IObject)Game.CreateObject("InvisibleBlock", p.GetWorldPosition() + new Vector2(1000, 1000));
+                    invis.SetSizeFactor(new Point(3, 1));
+                    IObject invis2 = (IObject)Game.CreateObject("InvisibleBlock", p.GetWorldPosition() + new Vector2(1000, 1030));
+                    invis2.SetSizeFactor(new Point(3, 1));
+                    invis2.SetSizeFactor(new Point(400, 1));
+                    ind.Add(invis);
+                    ind.Add(invis2);
+
+                    IProfile clone = p.GetUser().GetProfile();
+                    IPlayer plr = Game.CreatePlayer(p.GetWorldPosition());
+                    plr.SetHealth(p.GetHealth());
+                    plr.SetBotName(p.Name);
+                    plr.SetTeam(p.GetTeam());
+                    plr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotA));
+                    plr.SetProfile(clone);
+                    plr.GiveWeaponItem(p.CurrentMeleeWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentMeleeMakeshiftWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentPrimaryWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentSecondaryWeapon.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentPowerupItem.WeaponItem);
+                    plr.GiveWeaponItem(p.CurrentThrownItem.WeaponItem);
+                    plr.SetCurrentPrimaryWeaponAmmo(p.CurrentPrimaryWeapon.TotalAmmo);
+                    plr.SetCurrentSecondaryWeaponAmmo(p.CurrentSecondaryWeapon.TotalAmmo);
+                    plr.SetCurrentThrownItemAmmo(p.CurrentThrownItem.CurrentAmmo);
+                    plr.SetModifiers(p.GetModifiers());
+                    ind2.Add(plr);
+                    p.SetWorldPosition(invis.GetWorldPosition() + new Vector2(0, 20));
+                    p.SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+                    p.SetModifiers(new PlayerModifiers() { ExplosionDamageTakenModifier = 0, ProjectileDamageTakenModifier = 0, FireDamageTakenModifier = 0, MeleeDamageTakenModifier = 0, ImpactDamageTakenModifier = 0, CanBurn = 0 });
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                ind.ForEach(b => b.Remove());
+                ind.Clear();
+                ind2.ForEach(plr =>
+                    {
+                        foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                        {
+                            if (plr.Name == p.Name)
+                            {
+                                p.GiveWeaponItem(plr.CurrentMeleeWeapon.WeaponItem);
+                                p.GiveWeaponItem(plr.CurrentMeleeMakeshiftWeapon.WeaponItem);
+                                p.GiveWeaponItem(plr.CurrentPrimaryWeapon.WeaponItem);
+                                p.GiveWeaponItem(plr.CurrentSecondaryWeapon.WeaponItem);
+                                p.GiveWeaponItem(plr.CurrentPowerupItem.WeaponItem);
+                                p.GiveWeaponItem(plr.CurrentThrownItem.WeaponItem);
+                                p.SetWorldPosition(plr.GetWorldPosition());
+                                p.SetCurrentPrimaryWeaponAmmo(plr.CurrentPrimaryWeapon.TotalAmmo);
+                                p.SetCurrentSecondaryWeaponAmmo(plr.CurrentSecondaryWeapon.TotalAmmo);
+                                p.SetCurrentThrownItemAmmo(plr.CurrentThrownItem.CurrentAmmo);
+                                p.SetModifiers(plr.GetModifiers());
+                                p.SetCameraSecondaryFocusMode(CameraFocusMode.Focus);
+                                if (plr.IsDead)
+                                    p.Remove();
+                                plr.Remove();
+                                p.SetInputEnabled(true);
+                                p.SetNametagVisible(true);
+                            }
+                        }
+                    });
+            }
+        }
+        class ExplosivePunch : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Explosive Punch";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => x.IsMeleeAttacking))
+                    {
+                        Game.TriggerExplosion(p.GetWorldPosition());
+                    }
+                }), 1);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class WhoIsWho : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Who is Who?";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                {
+                    Game.PlayEffect("EXP", p.GetWorldPosition());
+                    p.SetProfile(WhoProfile);
+                    p.SetNametagVisible(false);
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    p.SetNametagVisible(true);
+                foreach (PlayerData data in DefaultDataList)
+                    data.Player.SetProfile(data.Profile);
+            }
+        }
+        class SpawnExplosiveSurprise : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Spawn Explosive Surprise";
+            }
+            protected override void Begin()
+            {
+                IPlayer p;
+                p = Game.GetPlayers()[rng.Next(Game.GetPlayers().Length)];
+                if (p != null && !p.IsRemoved)
+                {
+                    if (p.FacingDirection == 1)
+                    {
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(30, 0));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(20, 0));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(40, 0));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(30, 30));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(20, 30));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(40, 30));
+                        Game.CreateObject("Gascan00", p.GetWorldPosition() + new Vector2(20, 0));
+                        Game.CreateObject("Gascan00", p.GetWorldPosition() + new Vector2(40, 0));
+                        Game.CreateObject("PropaneTank", p.GetWorldPosition() + new Vector2(30, 40));
+                    }
+                    else
+                    {
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(-30, 0));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(-20, 0));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(-40, 0));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(-30, 30));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(-20, 30));
+                        Game.CreateObject("BarrelExplosive", p.GetWorldPosition() + new Vector2(-40, 30));
+                        Game.CreateObject("Gascan00", p.GetWorldPosition() + new Vector2(-20, 0));
+                        Game.CreateObject("Gascan00", p.GetWorldPosition() + new Vector2(-40, 0));
+                        Game.CreateObject("PropaneTank", p.GetWorldPosition() + new Vector2(-30, 40));
+                    }
+                }
+
+            }
+        }
+        class InfiniteEnergy : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Infinite Energy";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.SetModifiers(new PlayerModifiers() { EnergyConsumptionModifier = 0 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (PlayerData data in DefaultDataList)
+                    data.Player.SetModifiers(data.Mods);
+            }
+        }
+        class Monochrome : AllEvents
+        {
+            List<string[]> originalColors = new List<string[]>();
+            List<IObject> objects = new List<IObject>();
+            List<string[]> playerColors = new List<string[]>();
+            List<IPlayer> players = new List<IPlayer>();
+            static readonly string[] grayProfile = new string[9 * 3]{"Skin5","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray",
+                        "ClothingGray","ClothingGray","ClothingGray" };
+            protected override string GetEffectName()
+            {
+                return "Monochrome";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject bgTiles in Game.GetObjects<IObject>().Where(o => o.Name.StartsWith("Bg") || o.Name.StartsWith("FarBg")).ToArray())
+                {
+                    objects.Add(bgTiles);
+                    originalColors.Add(bgTiles.GetColors());
+                    bgTiles.SetColor1("BgGray");
+                    bgTiles.SetColor2("BgGray");
+                    bgTiles.SetColor3("Black");
+                }
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    players.Add(p);
+                    playerColors.Add(getProfileColors(p.GetProfile()));
+                    p.SetProfile(setProfileColors(p.GetProfile(), grayProfile));
+                }
+                StartTimer();
+            }
+            string[] getProfileColors(IProfile prof)
+            {
+                string[] colors = new string[9 * 3];
+                if (prof.Skin != null)
+                {
+                    colors[0] = prof.Skin.Color1;
+                    colors[1] = prof.Skin.Color2;
+                    colors[2] = prof.Skin.Color3;
+                }
+                if (prof.Head != null)
+                {
+                    colors[3] = prof.Head.Color1;
+                    colors[4] = prof.Head.Color2;
+                    colors[5] = prof.Head.Color3;
+                }
+                if (prof.ChestOver != null)
+                {
+                    colors[6] = prof.ChestOver.Color1;
+                    colors[7] = prof.ChestOver.Color2;
+                    colors[8] = prof.ChestOver.Color3;
+                }
+                if (prof.ChestUnder != null)
+                {
+                    colors[9] = prof.ChestUnder.Color1;
+                    colors[10] = prof.ChestUnder.Color2;
+                    colors[11] = prof.ChestUnder.Color3;
+                }
+                if (prof.Hands != null)
+                {
+                    colors[12] = prof.Hands.Color1;
+                    colors[13] = prof.Hands.Color2;
+                    colors[14] = prof.Hands.Color3;
+                }
+                if (prof.Accessory != null)
+                {
+                    colors[15] = prof.Accessory.Color1;
+                    colors[16] = prof.Accessory.Color2;
+                    colors[17] = prof.Accessory.Color3;
+                }
+                if (prof.Waist != null)
+                {
+                    colors[18] = prof.Waist.Color1;
+                    colors[19] = prof.Waist.Color2;
+                    colors[20] = prof.Waist.Color3;
+                }
+                if (prof.Legs != null)
+                {
+                    colors[21] = prof.Legs.Color1;
+                    colors[22] = prof.Legs.Color2;
+                    colors[23] = prof.Legs.Color3;
+                }
+                if (prof.Feet != null)
+                {
+                    colors[24] = prof.Feet.Color1;
+                    colors[25] = prof.Feet.Color2;
+                    colors[26] = prof.Feet.Color3;
+                }
+                return colors;
+            }
+            IProfile setProfileColors(IProfile prof, string[] colors)
+            {
+                if (prof.Skin != null)
+                {
+                    prof.Skin.Color1 = colors[0];
+                    prof.Skin.Color2 = colors[1];
+                    prof.Skin.Color3 = colors[2];
+                }
+                if (prof.Head != null)
+                {
+                    prof.Head.Color1 = colors[3];
+                    prof.Head.Color2 = colors[4];
+                    prof.Head.Color3 = colors[5];
+                }
+                if (prof.ChestOver != null)
+                {
+                    prof.ChestOver.Color1 = colors[6];
+                    prof.ChestOver.Color2 = colors[7];
+                    prof.ChestOver.Color3 = colors[8];
+                }
+                if (prof.ChestUnder != null)
+                {
+                    prof.ChestUnder.Color1 = colors[9];
+                    prof.ChestUnder.Color2 = colors[10];
+                    prof.ChestUnder.Color3 = colors[11];
+                }
+                if (prof.Hands != null)
+                {
+                    prof.Hands.Color1 = colors[12];
+                    prof.Hands.Color2 = colors[13];
+                    prof.Hands.Color3 = colors[14];
+                }
+                if (prof.Accessory != null)
+                {
+                    prof.Accessory.Color1 = colors[15];
+                    prof.Accessory.Color2 = colors[16];
+                    prof.Accessory.Color3 = colors[17];
+                }
+                if (prof.Waist != null)
+                {
+                    prof.Waist.Color1 = colors[18];
+                    prof.Waist.Color2 = colors[19];
+                    prof.Waist.Color3 = colors[20];
+                }
+                if (prof.Legs != null)
+                {
+                    prof.Legs.Color1 = colors[21];
+                    prof.Legs.Color2 = colors[22];
+                    prof.Legs.Color3 = colors[23];
+                }
+                if (prof.Feet != null)
+                {
+                    prof.Feet.Color1 = colors[24];
+                    prof.Feet.Color2 = colors[25];
+                    prof.Feet.Color3 = colors[26];
+                }
+                return prof;
+            }
+            protected override void End()
+            {
+                for (int i = 0; i < players.Count; i++)
+                    players[i].SetProfile(setProfileColors(players[i].GetProfile(), playerColors[i]));
+                for (int i = 0; i < objects.Count; i++)
+                    objects[i].SetColors(originalColors[i]);
+                originalColors.Clear();
+                objects.Clear();
+                playerColors.Clear();
+                players.Clear();
+            }
+        }
+        class AlwaysCrits : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Always Crits";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { ProjectileCritChanceTakenModifier = 100, ProjectileCritChanceDealtModifier = 100 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { ProjectileCritChanceTakenModifier = 1, ProjectileCritChanceDealtModifier = 1 });
+            }
+        }
+        class BreakableWeapons : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Breakable Weapons";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { ItemDropMode = 1 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { ItemDropMode = 0 });
+            }
+        }
+        class StunImmunity : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Stun Immunity";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.SetModifiers(new PlayerModifiers() { MeleeStunImmunity = 1, ProjectileCritChanceTakenModifier = 0 });
+                StartTimer();
+
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.SetModifiers(new PlayerModifiers() { MeleeStunImmunity = 0, ProjectileCritChanceTakenModifier = 0 });
+            }
+        }
+        class FurtherAway : AllEvents
+        {
+            IObjectCameraAreaTrigger cam;
+            Area originalcam;
+            protected override string GetEffectName()
+            {
+                return "Further Away";
+            }
+            protected override void Begin()
+            {
+                Area size = Game.GetCameraMaxArea();
+                originalcam = Game.GetCameraArea();
+                Vector2 pos = size.TopLeft;
+                IObjectCameraAreaTrigger camera = (IObjectCameraAreaTrigger)Game.CreateObject("CameraAreaTrigger", pos - new Vector2(200, -700));
+                cam = camera;
+                camera.SetSizeFactor(new Point((int)(pos.X * -10000), (int)Game.GetCameraArea().Height));
+                camera.SetCameraAreaMode(CameraAreaMode.ForceStatic);
+                camera.Trigger();
+                StartTimer();
+            }
+            protected override void End()
+            {
+                Game.SetCameraArea(originalcam);
+                cam.Remove();
+            }
+        }
+        class HealEveryone : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Heal Everyone";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetHealth(9999);
+            }
+        }
+        class StaticObjects : AllEvents
+        {
+            List<IObject> objects = new List<IObject>();
+            protected override string GetEffectName()
+            {
+                return "Static Objects";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByArea(Game.GetCameraArea()))
+                {
+                    if (obj.GetBodyType() == BodyType.Dynamic && !(obj is IPlayer))
+                    {
+                        obj.SetBodyType(BodyType.Static);
+                        objects.Add(obj);
+                    }
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                objects.ForEach(b => b.SetBodyType(BodyType.Dynamic));
+                objects.Clear();
+            }
+        }
+        class ObliterateAllBots : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Obliterate All Bots";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    if (p.GetUser() == null)
+                        p.Gib();
+                }
+            }
+        }
+        class TurnBotsIntoZombies : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Turn Bots Into Zombies";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    if (p.GetUser() == null)
+                    {
+                        p.SetBotBehavior(new BotBehavior(true, PredefinedAIType.ZombieA));
+                        IProfile ZombieSkin = p.GetProfile();
+                        ZombieSkin.Skin = new IProfileClothingItem("Zombie", "ClothingRed", "ClothingRed");
+                        p.SetProfile(ZombieSkin);
+                    }
+                }
+            }
+        }
+        class SupplyRifle : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Every Supply Crate Has a Rifle";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByName("SupplyCrate00"))
+                {
+                    IObjectSupplyCrate NewCrate = (IObjectSupplyCrate)Game.CreateObject("SupplyCrate00", obj.GetWorldPosition());
+                    NewCrate.SetSupplyCategoryType(SupplyCategoryType.Primary);
+                    obj.Remove();
+                }
+            }
+        }
+        class SupplyHealth : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Every Supply Crate Has a Medkit";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByName("SupplyCrate00"))
+                {
+                    IObjectSupplyCrate NewCrate = (IObjectSupplyCrate)Game.CreateObject("SupplyCrate00", obj.GetWorldPosition());
+                    NewCrate.SetWeaponItem(WeaponItem.MEDKIT);
+                    obj.Remove();
+                }
+            }
+        }
+        class GiveCompanion : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Give Everyone a Companion";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    IPlayer pr = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(40, 0));
+                    pr.SetBotName(p.Name + "'s Companion");
+                    pr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotC));
+                    pr.SetTeam(p.GetTeam());
+                    pr.SetStatusBarsVisible(false);
+                    pr.SetModifiers(new PlayerModifiers() { MaxHealth = 25, CurrentHealth = 25, SizeModifier = 0.75f });
+                    pr.SetGuardTarget(p);
+                    pr.SetProfile(Companion);
+                }
+            }
+        }
+        class SupplyRain : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Supply Rain";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    IPlayer p = Game.GetPlayers()[rng.Next(Game.GetPlayers().Length)];
+                    if (p != null && !p.IsRemoved)
+                    {
+                        Game.CreateObject("SupplyCrate00", p.GetWorldPosition() + new Vector2(30, 380));
+                    }
+                }), 500);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class CrowdCheer : AllEvents
+        {
+            List<IObject> objects = new List<IObject>();
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Crowd Cheer";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    Game.PlaySound("CrowdCheer", Vector2.Zero);
+                }), 1000);
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    Vector2 pos = p.GetWorldPosition();
+                    IObject obj = (IObject)Game.CreateObject("BgSpectators00", pos);
+                    IObject obj2 = (IObject)Game.CreateObject("BgSpectators00", pos + new Vector2(60, 0));
+                    IObject obj3 = (IObject)Game.CreateObject("BgSpectators00", pos + new Vector2(0, 20));
+                    IObject obj4 = (IObject)Game.CreateObject("BgSpectators00", pos + new Vector2(60, 20));
+                    IObject obj5 = (IObject)Game.CreateObject("BgSpectators00", pos + new Vector2(120, 0));
+                    IObject obj6 = (IObject)Game.CreateObject("BgSpectators00", pos + new Vector2(120, 20));
+                    objects.Add(obj);
+                    objects.Add(obj2);
+                    objects.Add(obj3);
+                    objects.Add(obj4);
+                    objects.Add(obj5);
+                    objects.Add(obj6);
+                    foreach (IObject objj in objects)
+                    {
+                        objj.SetColor1("BgMagenta");
+                    }
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                objects.ForEach(b => b.Remove());
+                objects.Clear();
+                update.Stop();
+            }
+        }
+        class OneBulletMags : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "One Bullet Mags";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        if (p.CurrentPrimaryWeapon.CurrentAmmo > 1)
+                            p.SetCurrentPrimaryWeaponAmmo(1, 1);
+                        if (p.CurrentSecondaryWeapon.CurrentAmmo > 1)
+                            p.SetCurrentSecondaryWeaponAmmo(1, 1);
+                    }
+                }
+                ), 1);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class ChatKill : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Chat Kill";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot && x != null && !x.IsDead && x.ChatActive))
+                    {
+                        p.SetHealth(p.GetModifiers().CurrentHealth - 1);
+                    }
+                }), 50);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class JumpJump : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Jump Jump!";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        p.SetLinearVelocity(new Vector2(0, 12));
+                    }
+                }), 1800);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class ReverseGravity : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Reverse Gravity";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        p.SetLinearVelocity(new Vector2(0, 3));
+                    }
+                }), 10);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    p.SetModifiers(new PlayerModifiers { ImpactDamageTakenModifier = 0 });
+                Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (PlayerData data in DefaultDataList)
+                        data.Player.SetModifiers(data.Mods);
+                }), 5000, 1);
+                update.Stop();
+            }
+        }
+        class Pillows : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Pillow Fight";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IObject obj in Game.GetObjectsByName("Pillow00"))
+                        obj.Remove();
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    {
+                        if (p.CurrentMeleeMakeshiftWeapon.WeaponItem != WeaponItem.PILLOW)
+                            p.GiveWeaponItem(WeaponItem.PILLOW);
+                    }
+                }
+                ));
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class OnlyRight : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            Events.UpdateCallback update1 = null;
+            protected override string GetEffectName()
+            {
+                return "Only Right";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    {
+                        if (p.FacingDirection == -1)
+                        {
+                            p.SetInputEnabled(false);
+                            p.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+                            p.SetFaceDirection(1);
+                        }
+                    }
+                }));
+                update1 = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach(IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    {
+                        p.SetInputEnabled(true);
+                    }
+                }),300);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+                update1.Stop();
+            }
+        }
+        class OnlyLeft : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            Events.UpdateCallback update1 = null;
+            protected override string GetEffectName()
+            {
+                return "Only Left";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    {
+                        if (p.FacingDirection == 1)
+                        {
+                            p.SetInputEnabled(false);
+                            p.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+                            p.SetFaceDirection(-1);
+                        }
+                    }
+                }));
+                update1 = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsBot))
+                    {
+                        p.SetInputEnabled(true);
+                    }
+                }), 300);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+                update1.Stop();
+            }
+        }
+        class Sub2Fleecade : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Subscribe to Fleecade";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    if (!p.IsBot)
+                    {
+                        IObjectDialogueTrigger d = (IObjectDialogueTrigger)Game.CreateObject("DialogueTrigger", Vector2.Zero);
+                        d.SetDialogueTargetObject(p);
+                        d.SetDialogueText("Subscribe to Fleecade");
+                        d.SetDialogueDisplayTime(15000);
+                        d.SetDialogueTextColor(new Color(255, 0, 0));
+                        d.Trigger();
+                    }
+                    if (p.IsBot)
+                    {
+                        p.SetBotName("Subscribe to Fleecade");
+                    }
+                }
+                foreach (IObjectText text in Game.GetObjects<IObjectText>())
+                {
+                    text.SetText("Subscribe to Fleecade");
+                }
+            }
+        }
+        class RandomHP : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Randomize HP of Everyone";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    int Health = rng.Next(1000) + 1;
+                    p.SetModifiers( new PlayerModifiers() { MaxHealth = 1000});
+                    p.SetHealth(Health);
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (PlayerData data in DefaultDataList)
+                    data.Player.SetModifiers(data.Mods);
+            }
+        }
+        class ExplosiveBirds : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Explosive Birds";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                {
+                    IObject obj = Game.CreateObject("Dove00", p.GetWorldPosition() + new Vector2(0, 40));
+                    obj.CustomID = "ExplosiveBird";
+                }
+                foreach(IPlayer p in Game.GetPlayers())
+                {
+                    foreach (IObject obj in Game.GetObjectsByCustomID("ExplosiveBird"))
+                    {
+                        Events.UpdateCallback.Start((dt =>
+                        {
+                            float distance = Vector2.DistanceSquared(p.GetWorldPosition(), obj.GetWorldPosition());
+                            if (distance < 20*20 && obj != null && !obj.IsRemoved)
+                            {
+                                Game.TriggerExplosion(obj.GetWorldPosition());
+                            }
+                        }
+                    ));
+                    }
+                }
+            }
+        }
+        class FlareGuns : AllEvents
+        {
+            Events.ProjectileCreatedCallback created = null;
+            protected override string GetEffectName()
+            {
+                return "Flare Guns";
+            }
+            protected override void Begin()
+            {
+                created = Events.ProjectileCreatedCallback.Start(OnProjectileCreated);
+                StartTimer();
+            }
+            void OnProjectileCreated(IProjectile[] projectiles)
+            {
+                foreach (IProjectile proj in projectiles)
+                {
+                    if (proj.ProjectileItem != ProjectileItem.FLAREGUN)
+                    {
+                        Game.PlaySound("Flaregun", Vector2.Zero);
+                        Game.SpawnProjectile(ProjectileItem.FLAREGUN, proj.Position, proj.Direction);
+                        proj.FlagForRemoval();
+                    }
+                }
+            }
+            protected override void End()
+            {
+                created.Stop();
+            }
+        }
+        class Poison : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Poison";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        if (p.GetModifiers().CurrentHealth > 2)
+                            p.SetHealth(p.GetModifiers().CurrentHealth - 1);
+                    }
+                }
+                ), 420);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class FrozenBullets: AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Frozen Bullets";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IProjectile proj in Game.GetProjectiles())
+                    {
+                        proj.Direction = -proj.Direction;
+                    }
+                }));
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class PlayersDeflectBullets : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Players Deflect Bullets";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IPlayer p in Game.GetPlayers())
+                    {
+                        foreach (IProjectile proj in Game.GetProjectiles())
+                        {
+                            float distance = Vector2.DistanceSquared(p.GetWorldPosition(), proj.Position);
+                            if (distance < 25 * 25 && proj != null && !proj.IsRemoved)
+                            {
+                                proj.Direction = -proj.Direction;
+                            }
+                        }
+                    }
+                }));
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class AimForTheSky : AllEvents
+        {
+            Events.ProjectileCreatedCallback created = null;
+            protected override string GetEffectName()
+            {
+                return "Aim For the Sky";
+            }
+            protected override void Begin()
+            {
+                created = Events.ProjectileCreatedCallback.Start(OnProjectileCreated);
+                StartTimer();
+            }
+            void OnProjectileCreated(IProjectile[] projectiles)
+            {
+                foreach (IProjectile proj in projectiles)
+                {
+                    proj.Direction = new Vector2(0, 180);
+                }
+            }
+            protected override void End()
+            {
+                created.Stop();
+            }
+        }
+        class HeavyBullets : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Heavy Bullets";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    foreach (IProjectile proj in Game.GetProjectiles())
+                    {
+                        if (proj.ProjectileItem != ProjectileItem.FLAREGUN && proj.ProjectileItem != ProjectileItem.GRENADE_LAUNCHER && proj.ProjectileItem != ProjectileItem.BOW)
+                            proj.Velocity -= new Vector2(1,50);
+                    }
+                }));
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class DespawnAllItems : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Despawn All Items";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject items in Game.GetObjects<IObjectWeaponItem>())
+                {
+                    items.Remove();
+                }
+            }
+        }
+        class PlayRandomMusic : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Play Random Music";
+            }
+            protected override void Begin()
+            {
+	            IObjectMusicTrigger mus = (IObjectMusicTrigger)Game.CreateObject("MusicTrigger", Vector2.Zero);
+	            mus.IsShufflePlay = true;
+	            mus.SetShuffleTracks(new MusicTrack[]{MusicTrack.SFDClassic, MusicTrack.MenuTheme, MusicTrack.Anarchy, MusicTrack.AroundTheCorner, MusicTrack.Shards, MusicTrack.ZombieNightmare, MusicTrack.Creeps, MusicTrack.GameShowBattle, MusicTrack.GameShowTheme, MusicTrack.Escape, MusicTrack.SeekAndDestroy, MusicTrack.IronFists, MusicTrack.RustAndGore, MusicTrack.Balista, MusicTrack.AGrimFeeling, MusicTrack.Funnyman, MusicTrack.Alley, MusicTrack.Hazardous, MusicTrack.HighMoon, MusicTrack.Military, MusicTrack.Rooftops, MusicTrack.Steamship, MusicTrack.SteamshipSynths, MusicTrack.Steamy, MusicTrack.Submarine, MusicTrack.TheDragon, MusicTrack.CowboyRobot, MusicTrack.Marching, MusicTrack.Marching2, MusicTrack.BloodInTheSnow, MusicTrack.TakingTheFortress, MusicTrack.Mechanisch, MusicTrack.BioExperiments, MusicTrack.CastleSonnenfreude, MusicTrack.Elevator, MusicTrack.SunnyCityJazz, MusicTrack.Downtown, MusicTrack.HeroesBattle, MusicTrack.SunnyCityJazzShort});
+	            mus.IsLooping = false;
+	            mus.Trigger();
+            }
+        }
+        class UltraZoom : AllEvents
+        {
+            IObjectCameraAreaTrigger cam;
+            Area originalcam;
+            protected override string GetEffectName()
+            {
+                return "Ultra Zoom";
+            }
+            protected override void Begin()
+            {
+                Area size = Game.GetCameraMaxArea();
+                originalcam = Game.GetCameraArea();
+                Vector2 pos = size.TopLeft;
+                IObjectCameraAreaTrigger camera = (IObjectCameraAreaTrigger)Game.CreateObject("CameraAreaTrigger", pos - new Vector2(200, -700));
+                cam = camera;
+                camera.SetSizeFactor(new Point((int)(pos.X * -10000), (int)Game.GetCameraArea().Height));
+                camera.SetCameraAreaMode(CameraAreaMode.ForceIndividual);
+                camera.SetCameraFixedIndividualZoom(100);
+                camera.Trigger();
+                StartTimer();
+            }
+            protected override void End()
+            {
+                Game.SetCameraArea(originalcam);
+                cam.Remove();
+            }
+        }
+        class SuperJumpKing : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Super Jump King";
+            }
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { JumpHeight = 2 });
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => !x.IsDead))
+                    p.SetModifiers(new PlayerModifiers() { JumpHeight = 1});
+            }
+        }
+        class RapidFire : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Rapid Fire";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt) =>
+                {
+                    foreach(IPlayer p in Game.GetPlayers())
+                    {
+                        p.SetCurrentPrimaryWeaponAmmo(100);
+                        p.SetCurrentSecondaryWeaponAmmo(100);
+                    }
+                }, 250);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+            }
+        }
+        class Bomberman : AllEvents
+        {
+            Events.ProjectileCreatedCallback created = null;
+            protected override string GetEffectName()
+            {
+                return "Bomberman";
+            }
+            protected override void Begin()
+            {
+                created = Events.ProjectileCreatedCallback.Start(OnProjectileCreated);
+                StartTimer();
+            }
+            void OnProjectileCreated(IProjectile[] projectiles)
+            {
+                foreach (IProjectile proj in projectiles)
+                {
+                    Game.CreateObject("BarrelExplosive", proj.Position + new Vector2(7, 7));
+                    proj.FlagForRemoval();
+                }
+            }
+            protected override void End()
+            {
+                created.Stop();
+            }
+        }
+        class RainbowWorld : AllEvents
+        {
+            int x = 1;
+            Events.UpdateCallback update = null;
+            List<string[]> originalColors = new List<string[]>();
+            List<IObject> objects = new List<IObject>();
+            string[] customColors = {"BgRed","BgOrange", "BgYellow", "BgGreen", "BgCyan", "BgBlue", "BgMagenta"};
+            protected override string GetEffectName()
+            {
+                return "Rainbow World";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject bgTiles in Game.GetObjects<IObject>().Where(o => o.Name.StartsWith("Bg") || o.Name.StartsWith("FarBg")).ToArray())
+                {
+                    objects.Add(bgTiles);
+                    originalColors.Add(bgTiles.GetColors());
+                    bgTiles.SetColor1(customColors[0]);
+                    bgTiles.SetColor2(customColors[0]);
+                }
+                update = Events.UpdateCallback.Start((dt) =>
+                {
+                    if (x > 0 && x < customColors.Length)
+                    {
+                        ColorObjects();
+                        x++;
+                    }
+                    else
+                    {
+                        x = 0;
+                        ColorObjects();
+                        x++;
+                    }
+                }, 2000);
+                StartTimer();
+            }
+            void ColorObjects()
+            {
+                foreach (IObject bgTiles in Game.GetObjects<IObject>().Where(o => o.Name.StartsWith("Bg") || o.Name.StartsWith("FarBg")))
+                {
+                bgTiles.SetColor1(customColors[x]);
+                bgTiles.SetColor2(customColors[x]);
+                }
+            }
+            protected override void End()
+            {
+                update.Stop();
+                for (int i = 0; i < objects.Count; i++)
+                    objects[i].SetColors(originalColors[i]);
+                originalColors.Clear();
+                objects.Clear();
+            }
+        }
+        /*
+        class PhantomObjects : AllEvents
+        {
+            List<CollisionFilter> collisions = new List<CollisionFilter>();
+            List<IObject> objects = new List<IObject>();
+            protected override string GetEffectName()
+            {
+                return "Phantom Objects";
+            }
+            protected override void Begin()
+            {
+                foreach (IObject obj in Game.GetObjectsByArea(Game.GetCameraArea()))
+                {
+                    if (obj.GetBodyType() == BodyType.Dynamic && !(obj is IPlayer))
+                    {
+                        obj.SetBodyType(BodyType.Static);
+                        collisions.Add(obj.GetCollisionFilter());
+                        obj.SetCollisionFilter(new CollisionFilter() { AbsorbProjectile = false, BlockExplosions = false, BlockFire = false, BlockMelee = false, CategoryBits = 0, MaskBits = 0, ProjectileHit = false });
+                        objects.Add(obj);
+                    }
+                }
+                StartTimer();
+            }
+            protected override void End()
+            {
+                objects.ForEach(b => b.SetBodyType(BodyType.Dynamic));
+                objects.ForEach(b => b.SetCollisionFilter(collisions)); //?????????????????
+                objects.Clear();
+                collisions.Clear();
+            }
+        }
+        */
+        class VehicleRain : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Vehicle Rain";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt =>
+                {
+                    IPlayer p = Game.GetPlayers()[rng.Next(Game.GetPlayers().Length)];
+                    if (p != null && !p.IsRemoved)
+                    {
+                        string ObjectName = "";
+                        switch (rng.Next(3))
+                        {
+                            case 0: { ObjectName = "Car00A"; } break;
+                            case 1: { ObjectName = "Car01A"; } break;
+                            case 2: { ObjectName = "Van00"; } break;
+                            default:
+                                break;
+                        }
+                        IObject obj = (IObject)Game.CreateObject(ObjectName, p.GetWorldPosition() + new Vector2(30, 380));
+                        obj.CustomID = "c_vehicle";
+                    }
+                }), 2000);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                update.Stop();
+                foreach (IObject obj in Game.GetObjectsByCustomID("c_vehicle"))
+                {
+                    obj.Remove();
+                }
+            }
+        }
+        class ZombieAttack : AllEvents
+        {
+            Events.UpdateCallback update = null;
+            protected override string GetEffectName()
+            {
+                return "Zombie Attack";
+            }
+            protected override void Begin()
+            {
+                update = Events.UpdateCallback.Start((dt) =>
+                {
+                    int Pos = 0;
+                    IUser u;
+                    u = Game.GetActiveUsers()[rng.Next(Game.GetActiveUsers().Length)];
+                    IPlayer p;
+                    p = u.GetPlayer();
+                    if (p != null && !p.IsRemoved && !p.IsBot)
+                    {
+                        if (p.FacingDirection == 1)
+                            Pos = 40;
+                        else
+                            Pos = -40;
+                        IPlayer plr = Game.CreatePlayer(p.GetWorldPosition() + new Vector2(Pos, 0));
+                        plr.SetBotName("c_Zombie");
+                        plr.SetNametagVisible(false);
+                        plr.SetModifiers(new PlayerModifiers() { MaxHealth = 35, CurrentHealth = 35, MaxEnergy = 70, CurrentEnergy = 70, MeleeDamageDealtModifier = 0.6F });
+                        plr.SetBotBehavior(new BotBehavior(true, PredefinedAIType.ZombieA));
+                        plr.SetProfile(Zombie);
+                        plr.SetTeam(PlayerTeam.Team8);
+                    }
+                }, 1300);
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers().Where(x => x.IsBot && x.Name == "c_Zombie"))
+                {
+                    p.Gib();
+                }
+                update.Stop();
+            }
+        }
+        class KnockbackImmunity : AllEvents
+        {
+            protected override string GetEffectName()
+            {
+                return "Knockback Immunity";
+            }
+
+            protected override void Begin()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { MeleeStunImmunity = 1, ExplosionKnockbackImmunity = 1, ProjectileCritChanceTakenModifier = 0 });
+
+                StartTimer();
+            }
+            protected override void End()
+            {
+                foreach (IPlayer p in Game.GetPlayers())
+                    p.SetModifiers(new PlayerModifiers() { MeleeStunImmunity = 0, ExplosionKnockbackImmunity = 0, ProjectileCritChanceTakenModifier = 1 });
+
+            }
+        }
+
+        class PlayerData
+        {
+            public Vector2 Position;
+            public IPlayer Player;
+            public PlayerModifiers Mods;
+            public MeleeWeaponItem MeleeWpn;
+            public MeleeWeaponItem MakeshiftWpn;
+            public RifleWeaponItem RifleWpn;
+            public HandgunWeaponItem HandgunWpn;
+            public PowerupWeaponItem PowerupWpn;
+            public ThrownWeaponItem ThrownWpn;
+            public PlayerTeam Team;
+            public IProfile Profile;
+            public bool Nametag;
+            public bool Statusbars;
+            public int AmmoPrimary;
+            public int AmmoSecondary;
+            public int AmmoThrown;
+            public PlayerHitEffect HitEffect;
+            public bool statusbars;
+            public PlayerData(IPlayer p)
+            {
+                Position = p.GetWorldPosition();
+                Player = p;
+                Mods = p.GetModifiers();
+                MeleeWpn = p.CurrentMeleeWeapon;
+                MakeshiftWpn = p.CurrentMeleeMakeshiftWeapon;
+                RifleWpn = p.CurrentPrimaryWeapon;
+                HandgunWpn = p.CurrentSecondaryWeapon;
+                PowerupWpn = p.CurrentPowerupItem;
+                ThrownWpn = p.CurrentThrownItem;
+                Team = p.GetTeam();
+                if (p.IsUser)
+                    Profile = p.GetUser().GetProfile();
+                else
+                    Profile = p.GetProfile();
+                Nametag = p.GetNametagVisible();
+                Statusbars = p.GetStatusBarsVisible();
+                AmmoPrimary = p.CurrentPrimaryWeapon.TotalAmmo;
+                AmmoSecondary = p.CurrentSecondaryWeapon.TotalAmmo;
+                AmmoThrown = p.CurrentThrownItem.CurrentAmmo;
+                HitEffect = p.GetHitEffect();
+                statusbars = p.GetStatusBarsVisible();
+            }
+        }

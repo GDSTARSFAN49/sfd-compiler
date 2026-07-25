@@ -1,0 +1,452 @@
+/* Form1.cs */
+
+        int timer = 30;
+        int cooldown = 4;
+        bool teams = true;
+        bool supplies = false;
+        bool weapons = false;
+        bool boost = true;
+        bool effect = true;
+        bool mods = false;
+        Random random = new Random();
+        IPlayer potatoPlayer;
+        IObjectTimerTrigger counter;
+        int sec = 30;
+        bool playing = false;
+        bool end = false;
+        public void OnStartup()
+        {
+            // Save
+            if (!Game.LocalStorage.TryGetItemInt("HPTIMER", out timer))
+                timer = 30;
+            if (!Game.LocalStorage.TryGetItemInt("HPCOOLDOWN", out cooldown))
+                cooldown = 4;
+            if (!Game.LocalStorage.TryGetItemBool("HPTEAMS", out teams))
+                teams = true;
+            if (!Game.LocalStorage.TryGetItemBool("HPSUPPLIES", out supplies))
+                supplies = true;
+            if (!Game.LocalStorage.TryGetItemBool("HPWEPS", out weapons))
+                weapons = true;
+            if (!Game.LocalStorage.TryGetItemBool("HPBOOST", out boost))
+                boost = true;
+            if (!Game.LocalStorage.TryGetItemBool("HPEFFECT", out effect))
+                effect = true;
+            if (!Game.LocalStorage.TryGetItemBool("HPMODS", out mods))
+                mods = true;
+
+            // Check if mode can start
+            if (!CheckWin())
+            {
+                // Starting sequence
+                SetupTimer(cooldown * 1000, 1, "NextPotato").Trigger();
+                playing = true;
+                Game.ShowChatMessage("Hot Potato! mode made by Dxse", Color.Green);
+                Game.ShowChatMessage("Run from the hot potato or tag others with it! Last player standing wins.", Color.Yellow);
+
+                // Setup map
+                Game.AutoScoreConditionEnabled = false;
+                Game.AutoSpawnSupplyCratesEnabled = supplies;
+                Game.AutoVictoryConditionEnabled = false;
+                Game.DeathSequenceEnabled = true;
+
+                // Setup players
+                foreach (IPlayer player in Game.GetPlayers().Where(p => p.IsUser && !p.IsDead))
+                    if (teams)
+                        player.SetTeam(PlayerTeam.Team1);
+                    else
+                        player.SetTeam(PlayerTeam.Independent);
+
+                // Events
+                Events.PlayerDeathCallback.Start(OnPlayerDeath);
+                Events.PlayerMeleeActionCallback.Start(OnPlayerMeleeAction);
+                Events.UpdateCallback.Start(OnUpdate, 0);
+                Events.UserMessageCallback.Start(OnUserMessage);
+            }
+            else
+                Game.ShowChatMessage("There aren't enough players to start Hot Potato!", Color.Red);
+        }
+
+        public void OnPlayerDeath(IPlayer player, PlayerDeathArgs args)
+        {
+            if (args.Killed)
+            {
+                if (CheckWin()) // Check if there's only 1 player alive
+                {
+                    playing = false;
+                    end = true;
+                    IPlayer winner = Game.GetPlayers().Where(p => p.IsUser && !p.IsDead).First(); // Get alive player
+                    if (winner != null)
+                    {
+                        winner.SetTeam(PlayerTeam.Independent);
+                        winner.GetUser().IncreaseScore(); // Win
+                        Game.SetGameOver(string.Format("{0} wins hot potato!", winner.Name));
+                    }    
+                }
+                else if (player == potatoPlayer) // Check if it's potatoPlayer that died
+                {
+                    counter.Remove(); // Remove counter
+                    KillPotato(); // Kill effect just incase
+
+                    SetupTimer(cooldown * 1000, 1, "NextPotato").Trigger(); // Next
+                }
+            }
+        }
+
+        public void OnPlayerMeleeAction(IPlayer player, PlayerMeleeHitArg[] args)
+        {
+            foreach (PlayerMeleeHitArg arg in args)
+                if (Game.GetPlayer(arg.HitObject.UniqueID) != null && player == potatoPlayer)
+                {
+                    IPlayer hitPlayer = Game.GetPlayer(arg.HitObject.UniqueID);
+                    if (hitPlayer.IsUser && !hitPlayer.IsDead)
+                        if (!hitPlayer.IsBlocking || hitPlayer.GetFaceDirection() == player.GetFaceDirection())
+                            Potatoify(hitPlayer); // Potatoify hit player
+                }
+        }
+
+        Color popupColor = new Color(255, 180, 0);
+        Color pnormalCol = new Color(255, 180, 0);
+        Color pdangerCol = Color.Red;
+        public void OnUpdate(float elapsed)
+        {
+            if (boost && potatoPlayer != null && !potatoPlayer.IsDead)
+                potatoPlayer.SetSpeedBoostTime(200); // Update the speedboost of potatoPlayer
+
+            if (playing) // Popup while playing
+                Game.ShowPopupMessage(string.Format("{0} has the hot potato!\n{1}s left", potatoPlayer != null && !potatoPlayer.IsRemoved ? potatoPlayer.Name : "Nobody", sec), popupColor);
+            else
+                Game.HidePopupMessage();
+
+            if (!weapons && potatoPlayer != null) // Disallow the potatoPlayer from carrying weapons
+            {
+                if (potatoPlayer.CurrentMeleeWeapon.WeaponItem != WeaponItem.NONE) potatoPlayer.Disarm(WeaponItemType.Melee, new Vector2(.75f * potatoPlayer.GetFaceDirection(), .5f));
+                if (potatoPlayer.CurrentSecondaryWeapon.WeaponItem != WeaponItem.NONE) potatoPlayer.Disarm(WeaponItemType.Handgun, new Vector2(.75f * potatoPlayer.GetFaceDirection(), .5f));
+                if (potatoPlayer.CurrentPrimaryWeapon.WeaponItem != WeaponItem.NONE) potatoPlayer.Disarm(WeaponItemType.Rifle, new Vector2(.75f * potatoPlayer.GetFaceDirection(), .5f));
+                if (potatoPlayer.CurrentThrownItem.WeaponItem != WeaponItem.NONE) potatoPlayer.Disarm(WeaponItemType.Thrown, new Vector2(.75f * potatoPlayer.GetFaceDirection(), .5f));
+                if (potatoPlayer.CurrentPowerupItem.WeaponItem != WeaponItem.NONE) potatoPlayer.Disarm(WeaponItemType.Powerup, new Vector2(.75f * potatoPlayer.GetFaceDirection(), .5f));
+            }
+        }
+
+        public void NextPotato(TriggerArgs args)
+        {
+            if (!playing || end)
+                return;
+
+            List<IPlayer> playerList = new List<IPlayer>();
+            foreach (IPlayer player in Game.GetPlayers().Where(p => p.IsUser && !p.IsDead))
+                playerList.Add(player);
+
+            if (playerList.Count > 0)
+            {
+                sec = timer; // Reset countdown
+                Potatoify(playerList[random.Next(0, playerList.Count)]); // Choose random player for potatoPlayer
+                SetupTimer(1000, 0, "Count").Trigger(); // New counter
+            }
+        }
+
+        public void Count(TriggerArgs args)
+        {
+            counter = (IObjectTimerTrigger)args.Caller; // Declare this as the counter
+            sec--; // Count
+
+            if (!playing || end)
+                return; // Stop if the game isn't going on anymore
+
+            if (sec % 10 == 0 || sec <= 5)
+            {
+                Game.PlaySound("TimerTick", Vector2.Zero); // TimerTick
+                PotatoEffect(); // Effect
+            }
+
+            if (sec <= 5)
+            {
+                popupColor = pdangerCol; // Danger color during low sec
+                if (potatoPlayer != null && !potatoPlayer.IsRemoved && effect)
+                    Game.PlayEffect("CFTXT", potatoPlayer.GetWorldPosition() + new Vector2(0, 12), sec > 0 ? sec.ToString() : "TIME'S UP!"); // Pressure the potatoPlayer with CFTXT
+            }
+
+            if (sec == 0) // 0 reached
+            {
+                counter.Remove(); // Remove counter
+                KillPotato(); // Kill current potatoPlayer
+            }
+        }
+
+        void KillPotato()
+        {
+            if (potatoPlayer != null)
+            {
+                Game.TriggerExplosion(potatoPlayer.GetWorldPosition()); // Explosion
+                potatoPlayer.Gib(); // Gib
+                Game.PlaySound("ChurchBell1", Vector2.Zero);
+            }
+        }
+
+        void Potatoify(IPlayer player)
+        {
+            // Check if there's already a potatoPlayer
+            if (potatoPlayer != null)
+            {
+                IPlayer prevPotato = potatoPlayer;
+                potatoPlayer = null;
+
+                if (boost)
+                    prevPotato.SetSpeedBoostTime(0); // Reset speedboost of previous potatoPlayer
+                prevPotato.SetTeam(CorrectTeam(prevPotato)); // Set team of previous potatoPlayer
+            }
+
+            potatoPlayer = player;
+            potatoPlayer.SetTeam(CorrectTeam(potatoPlayer)); // Set team of potatoPlayer
+            Game.PlaySound("LogoSlam", Vector2.Zero); // Sound
+            if (effect) Game.PlayEffect("CFTXT", potatoPlayer.GetWorldPosition(), "PASS!"); // CFTXT Effect
+            PotatoEffect(); // Effect
+
+            popupColor = pdangerCol; // Popupcolor
+            Events.UpdateCallback.Start(x =>
+            {
+                popupColor = pnormalCol;
+            }, 200, 1);
+        }
+
+        IObjectTimerTrigger SetupTimer(int interval, int repeat, string method)
+        {
+            IObjectTimerTrigger timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+            timer.SetIntervalTime(interval);
+            timer.SetRepeatCount(repeat);
+            timer.SetScriptMethod(method);
+            return timer;
+        }
+
+        PlayerTeam CorrectTeam(IPlayer player)
+        {
+            if (potatoPlayer == player)
+                return PlayerTeam.Team2; // potatoPlayer is always in the red team
+            else if (teams)
+                return PlayerTeam.Team1; // players are in the same team if the setting is enabled
+            else
+                return PlayerTeam.Independent; // otherwise independent
+        }
+
+        bool CheckWin()
+        {
+            int count = Game.GetPlayers().Where(p => p.IsUser && !p.IsDead).Count();
+            if (count > 1)
+                return false;
+            else
+                return true;
+        }
+
+        Color cmdColor = new Color(255, 181, 26);
+        Color successColor = new Color(34, 139, 34);
+        Color failColor = new Color(207, 34, 34);
+        Color lbColor = new Color(173, 216, 230);
+        Color lgColor = new Color(144, 238, 144);
+        public void OnUserMessage(UserMessageCallbackArgs args)
+        {
+            IUser user = args.User;
+
+            if (user.IsHost || mods && user.IsModerator) // Allow the host; moderators (if mods is enabled)
+                if (args.IsCommand)
+                {
+                    string command = args.Command.ToUpper();
+                    string commandargs = args.CommandArguments;
+
+                    switch (command)
+                    {
+                        case "HPHELP":
+                            Game.ShowChatMessage("Hot Potato! made by Dxse", lbColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPHELP", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPTIMER [5-60]", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPCOOLDOWN [0-10]", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPTEAMS [1/0]", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPSUPPLIES [1/0]", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPWEPS [1/0]", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPEFFECT [1/0]", cmdColor, user.UserIdentifier);
+                            Game.ShowChatMessage("/HPBOOST [1/0]", cmdColor, user.UserIdentifier);
+                            if (user.IsHost) Game.ShowChatMessage("/HPMODS [1/0]", cmdColor, user.UserIdentifier); // host-only command
+                            break;
+
+                        case "HPTIMER":
+                            if (IsValidChangeInt(5, 60, commandargs, user))
+                            {
+                                Game.LocalStorage.SetItem(command, ToInt(commandargs)); // Save
+                                timer = ToInt(commandargs); // Update timer
+                                Game.ShowChatMessage(string.Format("{0} has successfully been changed to: {1}", command, commandargs), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPCOOLDOWN":
+                            if (IsValidChangeInt(0, 10, commandargs, user))
+                            {
+                                Game.LocalStorage.SetItem(command, ToInt(commandargs)); // Save
+
+                                // Update real time
+                                cooldown = ToInt(commandargs);
+                                Game.ShowChatMessage(string.Format("{0} has successfully been changed to: {1}", command, commandargs), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPTEAMS":
+                            {
+                                bool b = IsValidChangeBool(teams, commandargs, user); // Bool
+                                if (b != teams)
+                                {
+                                    teams = b;
+                                    Game.LocalStorage.SetItem(command, b); // Save
+                                    Game.ShowChatMessage(string.Format("{0} has successfully been {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+
+                                    // Update real time
+                                    foreach (IPlayer player in Game.GetPlayers().Where(p => p.IsUser && !p.IsDead))
+                                        player.SetTeam(CorrectTeam(player));
+                                }
+                                else
+                                    Game.ShowChatMessage(string.Format("{0} is already {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPSUPPLIES":
+                            {
+                                bool b = IsValidChangeBool(supplies, commandargs, user); // Bool
+                                if (b != supplies)
+                                {
+                                    supplies = b;
+                                    Game.LocalStorage.SetItem(command, b); // Save
+                                    Game.ShowChatMessage(string.Format("{0} has successfully been {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+
+                                    // Update real time
+                                    Game.AutoSpawnSupplyCratesEnabled = b;
+                                }
+                                else
+                                    Game.ShowChatMessage(string.Format("{0} is already {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPWEPS":
+                            {
+                                bool b = IsValidChangeBool(weapons, commandargs, user); // Bool
+                                if (b != weapons)
+                                {
+                                    weapons = b;
+                                    Game.LocalStorage.SetItem(command, b); // Save
+                                    Game.ShowChatMessage(string.Format("{0} has successfully been {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+
+                                    // Already updates itself real time
+                                }
+                                else
+                                    Game.ShowChatMessage(string.Format("{0} is already {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPBOOST":
+                            {
+                                bool b = IsValidChangeBool(boost, commandargs, user); // Bool
+                                if (b != boost)
+                                {
+                                    boost = b;
+                                    Game.LocalStorage.SetItem(command, b); // Save
+                                    Game.ShowChatMessage(string.Format("{0} has successfully been {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+
+                                    // Already updates itself real time
+                                }
+                                else
+                                    Game.ShowChatMessage(string.Format("{0} is already {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPEFFECT":
+                            {
+                                bool b = IsValidChangeBool(effect, commandargs, user); // Bool
+                                if (b != effect)
+                                {
+                                    effect = b;
+                                    Game.LocalStorage.SetItem(command, b); // Save
+                                    Game.ShowChatMessage(string.Format("{0} has successfully been {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+
+                                    // Already updates itself real time
+                                }
+                                else
+                                    Game.ShowChatMessage(string.Format("{0} is already {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+                            }
+                            break;
+
+                        case "HPMODS":
+                            {
+                                bool b = IsValidChangeBool(mods, commandargs, user); // Bool
+                                if (b != mods)
+                                {
+                                    mods = b;
+                                    Game.LocalStorage.SetItem(command, b); // Save
+                                    Game.ShowChatMessage(string.Format("{0} has successfully been {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+
+                                    // Already updates itself real time
+                                }
+                                else
+                                    Game.ShowChatMessage(string.Format("{0} is already {1}", command, b ? "enabled" : "disabled"), successColor, user.UserIdentifier);
+                            }
+                            break;
+                    }
+                }
+        }
+
+        Int16 ToInt(string s)
+        {
+            if (s.All(char.IsDigit))
+                return Int16.Parse(s);
+            else
+                return 0;
+        }
+
+        bool IsValidChangeInt(int min, int max, string input, IUser user)
+        {
+            if (input.All(char.IsDigit))
+            {
+                int num = Int16.Parse(input);
+                if (num >= min && num <= max)
+                    return true;
+                else
+                {
+                    Game.ShowChatMessage(string.Format("The input must be a digit between {0} and {1}", min, max), failColor, user.UserIdentifier);
+                    return false;
+                }
+            }
+            else
+            {
+                Game.ShowChatMessage(string.Format("The input must be a digit between {0} and {1}", min, max), failColor, user.UserIdentifier);
+                return false;
+            }
+        }
+
+        bool IsValidChangeBool(bool b, string input, IUser user)
+        {
+            if (input == "1" || input.ToLower() == "true")
+                return true;
+            else if (input == "0" || input.ToLower() == "false")
+                return false;
+            else
+                return b;
+        }
+
+        public void PotatoEffect()
+        {
+            if (potatoPlayer != null && !potatoPlayer.IsRemoved && effect)
+                DisplayRange(potatoPlayer.GetWorldPosition() + new Vector2(0, 8), sec * 2 + 10);
+        }
+
+        public void DisplayRange(Vector2 pos, float radius)
+        {
+            for (int i = 0; i < 1 * radius; i++)
+                Game.PlayEffect("GLM", pos + new Vector2(0.5f, -0.5f) + CirclePattern(i, new Vector2(0, radius)));
+
+            if (Game.IsEditorTest)
+                Events.UpdateCallback.Start((x) =>
+                {
+                    Game.DrawCircle(pos, radius, Color.Red);
+                }, 1, 25);
+        }
+
+        public Vector2 CirclePattern(double angle, Vector2 pos)
+        {
+            var cos = Math.Cos(angle);
+            var sin = Math.Sin(angle);
+            return new Vector2((float)(pos.X * cos - pos.Y * sin), (float)(pos.X * sin + pos.Y * cos));
+        }

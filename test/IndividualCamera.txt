@@ -1,0 +1,25 @@
+public void OnStartup()
+{
+    foreach (IUser user in Game.GetActiveUsers())
+        user.GetPlayer().SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+
+    foreach (IObject obj in Game.GetObjectsByName(new string[] { "PlayerSpawnTrigger", "Streetsweeper" }))
+    {
+        if (obj is IObjectPlayerSpawnTrigger)
+            ((IObjectPlayerSpawnTrigger)obj).SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+        else if (obj is IObjectStreetsweeper)
+            ((IObjectStreetsweeper)obj).SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+    }
+
+    Events.ObjectCreatedCallback.Start(Guard);
+}
+
+public void Guard(IObject[] objs)
+{
+    foreach (IObject obj in objs)
+    {
+        IObjectStreetsweeper temp = obj as IObjectStreetsweeper;
+        if (temp != null)
+            temp.SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+    }
+}

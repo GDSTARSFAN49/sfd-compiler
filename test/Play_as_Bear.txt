@@ -1,0 +1,8 @@
+// Script Made By MOBSI
+ public void OnStartup()
+{
+    IProfile Benny = new IProfile();
+    Benny.Skin = new IProfileClothingItem("BearSkin", "ClothingPink");
+    IPlayer ply = Game.GetPlayers()[0];
+    ply.SetProfile(Benny);
+}

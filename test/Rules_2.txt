@@ -1,0 +1,120 @@
+/*
+* author: #chelog
+* description: Keep the order in your server with this simple yet useful script. No more explaining rules to new players!
+* gamemodes: campaign, survival, versus, custom
+*/
+
+
+//  ______         _                _____              _         _     
+//  | ___ \       | |              /  ___|            (_)       | |    
+//  | |_/ / _   _ | |  ___  ___    \ `--.   ___  _ __  _  _ __  | |_   
+//  |    / | | | || | / _ \/ __|    `--. \ / __|| '__|| || '_ \ | __|  
+//  | |\ \ | |_| || ||  __/\__ \   /\__/ /| (__ | |   | || |_) || |_   
+//  \_| \_| \__,_||_| \___||___/   \____/  \___||_|   |_|| .__/  \__|  
+//                                                       | |           
+//                                                       |_|           
+
+// 			Created by: #chelog                            
+//			Modified by: Sree                              
+// 			Finalized by: KliPeH                           
+
+//	   _____        _    _    _                    
+//   /  ___|      | |  | |  (_)                   		       
+//	  \ `--.   ___ | |_ | |_  _  _ __    __ _  ___ 		       
+//	   `--. \ / _ \| __|| __|| || '_ \  / _` |/ __|		       
+//	  /\__/ /|  __/| |_ | |_ | || | | || (_| |\__ \		       
+//	  \____/  \___| \__| \__||_||_| |_| \__, ||___/		       
+//	                                     __/ |     		      
+//	                                    |___/      	
+
+private const string SERVER_NAME = "My Server";		     // Set the name that will "speak" the message ads in chat.
+
+
+private const bool SHOW_POPUP_AD = true;		     // Set to "true" to show the popup message in the beginning of the round.
+private Color POPUP_TEXT_COLOR = new Color(255, 0, 0);	     // Set popup message color on an RGB scale.
+private int POPUP_AD_TIME = 1000 * 5;			     // Duration of ad placement in minutes (miliseconds * X). Only edit X.
+
+
+private const bool SHOW_CHAT_ADS = true;		     // Set to "true" to display in-chat ads, periodically.
+private const bool CHAT_ADS_DISPLAY_ONE_ON_START = true;     // Set to "true" to always display one ad at the beginning of the round.
+private const bool CHAT_ADS_RANDOM_ORDER = true;	     // Set to "true" to enable the shuffling of ad lines.
+private const int CHAT_ADS_INTERVAL = 1000 * 60;	     // Delay between each two chat ads (miliseconds * X). Only edit X.
+
+
+private string POPUP_AD_CONTENT =			     // Modify the popup message here. Do not remove the quote marks or the plus symbols!
+	"- Example rule #1\n" +				     // Make new lines with "\n". The last line has to end with a semi-colon (";")!
+	"- Example rule #2\n" +
+	"- Example rule #3\n" +
+	"-========================-\n" +
+	"Modify this popup through the map editor.\n" +
+	"You can also use /rules to show it again!";
+
+private string[] CHAT_ADS_CONTENT = new string[]{	     // Modify chat ads here. Do not remove the quote marks or the commas!
+	"Example ad #1. Modify it through the map editor!",  // Lines are separated by commas (","). The last line doesn't need one!
+	"Example ad #2. Modify it through the map editor!",
+	"Example ad #3. Modify it through the map editor!"
+};
+
+
+//		 _____             _       
+//		/  __ \           | |      
+//		| /  \/  ___    __| |  ___ 
+//		| |     / _ \  / _` | / _ \
+//		| \__/\| (_) || (_| ||  __/
+//		 \____/ \___/  \__,_| \___|
+
+
+Random rand = new Random();
+
+Events.UserMessageCallback UserMessageCallback = null;
+
+public void OnStartup(){
+
+	if (SHOW_CHAT_ADS){
+		CreateTimer(CHAT_ADS_INTERVAL, 0, "Chat_DisplayAd", "");
+		if (CHAT_ADS_DISPLAY_ONE_ON_START) Chat_DisplayAd(new TriggerArgs(null, null, false));
+	}
+
+	if (SHOW_POPUP_AD){
+		Game.ShowPopupMessage(POPUP_AD_CONTENT, POPUP_TEXT_COLOR);
+		if (POPUP_AD_TIME != 0) CreateTimer(POPUP_AD_TIME, 1, "Popup_HideAd", "");
+	}
+
+UserMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs ua) 
+{ 
+	switch (ua.Command)
+{
+	case "RULES": 
+	Game.ShowPopupMessage(POPUP_AD_CONTENT, POPUP_TEXT_COLOR);
+		if (POPUP_AD_TIME != 0) CreateTimer(POPUP_AD_TIME, 1, "Popup_HideAd", "");
+
+	break;
+}
+}
+
+private int m_curMessageNum = -1;
+public void Chat_DisplayAd(TriggerArgs args){
+	if (CHAT_ADS_RANDOM_ORDER) m_curMessageNum = rand.Next(CHAT_ADS_CONTENT.Length);
+	else {
+		if (m_curMessageNum == CHAT_ADS_CONTENT.Length - 1) m_curMessageNum = 0;
+		else m_curMessageNum ++;
+	}
+
+	Game.RunCommand("/MSG " + SERVER_NAME + ": " + CHAT_ADS_CONTENT[m_curMessageNum]);
+}
+
+public void Popup_HideAd(TriggerArgs args){
+	Game.HidePopupMessage();
+}
+
+private void CreateTimer(int interval, int count, string method, string id) {
+	IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger"); 
+	timerTrigger.SetIntervalTime(interval);
+	timerTrigger.SetRepeatCount(count);
+	timerTrigger.SetScriptMethod(method);
+	timerTrigger.CustomId = id;
+	timerTrigger.Trigger();
+}

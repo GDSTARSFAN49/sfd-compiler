@@ -1,0 +1,16 @@
+public void OnStartup(){
+	IObjectTimerTrigger Timer1 = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");Timer1.SetIntervalTime(0);Timer1.SetRepeatCount(0);Timer1.SetScriptMethod("SSS");Timer1.Trigger();
+}
+public void SSS(TriggerArgs args){
+	foreach(IPlayer ply in Game.GetPlayers()){
+		IPlayer Kit = (IPlayer)args.Sender;PlayerModifiers modify = ply.GetModifiers();
+		ply.SetModifiers(modify);modify.ImpactDamageTakenModifier=0f;
+
+		if(ply.IsWalking){
+		Vector2 Here = ply.GetWorldPosition();Vector2 DarTP = ply.GetWorldPosition() + new Vector2(ply.FacingDirection * 5, 1);ply.SetWorldPosition(DarTP);ply.SetLinearVelocity(new Vector2(ply.FacingDirection*0,0f));Game.PlayEffect("GIB",Here);Game.PlaySound("CartoonScream", Vector2.Zero, 100f);Game.PlaySound("LogoSlam", Vector2.Zero, 100f);
+		}
+		if(ply.IsBlocking && ply.IsInMidAir){
+		Vector2 Here = ply.GetWorldPosition();Vector2 DarTP = ply.GetWorldPosition() + new Vector2(ply.FacingDirection * 5, -1);ply.SetWorldPosition(DarTP);ply.SetLinearVelocity(new Vector2(ply.FacingDirection*0,0f));Game.PlayEffect("GIB",Here);Game.PlaySound("CartoonScream", Vector2.Zero, 100f);Game.PlaySound("LogoSlam", Vector2.Zero, 100f);
+		}
+	}
+}

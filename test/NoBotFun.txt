@@ -1,0 +1,34 @@
+/*
+* author: sree
+* description: Automatically ends the game if all human players are dead.
+* gamemodes: versus, custom
+*/
+
+public void OnStartup()
+{
+    CreateTimer(1, 0, "Check");
+}
+
+public void Check (TriggerArgs e)
+{
+    if (Game.GetPlayers().Where(p => !p.IsBot && !p.IsDead && p.GetUser() != null).Count() == 0 && Game.GetPlayers().Any(p => p.IsBot && !p.IsDead) && !Game.IsGameOver)
+    {
+        CreateTimer(3000, 1, "SetGameOver");
+    }
+}
+
+public void SetGameOver(TriggerArgs e)
+{
+    Game.SetGameOver("No human players remaining!");
+}
+
+private IObjectTimerTrigger CreateTimer(int interval, int count, string method) 
+{ 
+    var t = Game.CreateObject("TimerTrigger") as IObjectTimerTrigger;
+    t.SetIntervalTime(interval);
+    t.SetRepeatCount(count);
+    t.SetScriptMethod(method);
+    t.Trigger();
+ 
+    return t;
+}

@@ -1,0 +1,60 @@
+public void ShowAd1(TriggerArgs args)
+{
+    PrintText("This is the first test", 40, Color.Cyan, "OutOfAmmoLight");
+}
+
+public void ShowAd2(TriggerArgs args)
+{
+    PrintText("Second test", 12, Color.Red, "MenuCancel");
+}
+
+string text = null, sound = null;
+int letter = 0;
+Color color;
+IObjectTimerTrigger tick = null;
+
+public void OnStartup()
+{
+    tick = (IObjectTimerTrigger) Game.CreateObject("TimerTrigger");
+}
+
+public void PrintText(string textIn, int charsPerSecond, Color color, string sound)
+{
+    if (this.sound != sound)
+        this.sound = sound;
+
+    if (!this.color.Equals(color))
+        this.color = color;
+
+    text = textIn;
+    tick.StopTimer();
+    tick.SetIntervalTime(1000 / charsPerSecond);
+    tick.SetRepeatCount(0);
+    tick.SetScriptMethod("AddLetter");
+    tick.Trigger();
+}
+
+
+public void AddLetter(TriggerArgs args)
+{
+    if (letter < text.Length)
+    {
+        Game.ShowPopupMessage(text.Substring(0, letter + 1), color);
+        Game.PlaySound(sound, Vector2.Zero);
+        letter++;
+    }
+    else
+    {
+        tick.StopTimer();
+        tick.SetIntervalTime(4000);
+        tick.SetRepeatCount(1);
+        tick.SetScriptMethod("HideAd");
+        tick.Trigger();
+        letter = 0;
+    }
+}
+
+public void HideAd(TriggerArgs args)
+{
+    Game.HidePopupMessage();
+}

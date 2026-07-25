@@ -1,0 +1,174 @@
+/*
+* author: Motto73
+* description: Crouch and block to gib bodies : Press F to eat.
+*/
+
+
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+//=====<>=====<>=====||				Variable fields				   ||=====<>=====<>=====//
+//=====<>=====<>=====||	Please set these variables to the values that best fits you.	   ||=====<>=====<>=====//
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+
+	float Nutrition_Info=	10;					//The value that each giblet heals.
+
+	Color Text_Color=	Color.Yellow;				//The color to display instructions.
+
+	float Max_Hp_Limit=	101;					//The max HP until eating gets limited.100 is normal, over 100 is unlimited.
+
+	string Full_Text=	"I'm full.";				//The text to show if full.
+
+	bool Use_Random_Comments=true;				//To show random comments or not.
+
+	int Comment_Max_Factor=80;					//How often show the comment.0=always 101=never.
+
+	bool Use_ACTrigger=	true;					//If true, the meat can be picked up like pills.
+
+	bool Show_Vars=	false;					//To show the current set variables on startup or not.
+
+	bool Show_Instructions=true;				//Show help in the startup.
+
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+//=====<>=====<>=====||					Comments				   ||=====<>=====<>=====//
+//=====<>=====<>=====||			You can delete or add your own comments.		   ||=====<>=====<>=====//
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+public string[] comments={
+	"Om nom nom",
+	"Om nom",
+	"Om nom nom nom",
+	"So tasty!",
+	"Better than nothing",
+	"Why am I doing this?",
+	"Meat? I LOVE MEAT!"
+};
+
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+//=====<>=====<>=====||					Code				   ||=====<>=====<>=====//
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+
+Random rnd=new Random();
+List <IObject> Giblets = new List<IObject>();
+Dictionary <IObject,IObjectActivateTrigger> gibs= new Dictionary<IObject,IObjectActivateTrigger>();
+
+
+public void OnStartup(){
+	Game.RunCommand("/MSG Cannibals mod by Motto73"); 	//Delete this line if you dont want the credits.
+
+	string Variables=string.Format("Current set variables: \nUse comments: {0}\nNutrition informaton: {1}\nComment factor: {2}",Use_Random_Comments,Nutrition_Info.ToString(),Comment_Max_Factor.ToString());
+	string Instructions=("Crouch and hit the bodies to gib.\n"); 
+	if(!Show_Vars) Variables="";
+	if(Use_ACTrigger)
+	Instructions+="Pick up the meat to eat.";
+	else
+	Instructions+="Crouch and block to eat the meat.";  
+	if(!Show_Instructions) Instructions="";
+	Game.ShowPopupMessage(Instructions+"\n"+Variables,Text_Color);	
+	CreateTimer(200,0,"Cannibal","Timer0");
+}
+public void Cannibal(TriggerArgs args){
+	foreach(IObject ob in Game.GetObjectsByArea(Game.GetCameraArea())){		//Find all the meat
+		if(ob.Name=="Giblet00"||ob.Name=="Giblet01"||ob.Name=="Giblet02"||ob.Name=="Giblet03"||ob.Name=="Giblet04"){
+			if(!Giblets.Contains(ob)){
+				Giblets.Add(ob);
+			}
+		}
+	}
+	foreach(IObject ob in Game.GetObjectsByCustomId("GibletButtonTrigger")){	//Destroy used ActivateTriggers
+		if(ob is IObjectActivateTrigger){
+			IObjectActivateTrigger thisTrigger=ob as IObjectActivateTrigger;
+			if(thisTrigger.GetHighlightObject()==null)
+				ob.Destroy();
+		}
+	}
+	foreach(IPlayer ply in Game.GetPlayers()){					//The main method to check the player eating
+		if(ply.IsUser&&!ply.IsDead){
+		Area foodArea=new Area(ply.GetWorldPosition()+new Vector2(-8,-8),ply.GetWorldPosition()+new Vector2(8,8));
+		IObject[] objs=Game.GetObjectsByArea(foodArea);
+			foreach(IObject ob in objs){
+				if(Giblets.Contains(ob)){
+					if(ply.IsCrouching&&ply.IsBlocking&&!Use_ACTrigger){	//Player original eating
+						float hp=ply.GetHealth();
+						if(hp<Max_Hp_Limit){
+							ply.SetHealth(hp+Nutrition_Info);
+							ob.Destroy();
+							ShowEffect(ply);
+							int i=rnd.Next(0,100);
+							if(i>=Comment_Max_Factor){
+							string str=comments[rnd.Next(0,comments.Count())];
+							Game.PlayEffect("CFTXT",ply.GetWorldPosition()+new Vector2(0,16),str);
+							}
+						}
+						else if(!Use_ACTrigger)			//Display if full
+							Game.PlayEffect("CFTXT",ply.GetWorldPosition()+new Vector2(0,16),Full_Text);
+					}
+				}
+				if(ob is IPlayer&&((IPlayer)ob).IsDead){			//Gib the body
+					if(ply.IsCrouching&&ply.IsMeleeAttacking){
+						((IPlayer)ob).Gib();
+					}
+				}
+			}
+		}
+	}
+	if(Use_ACTrigger){
+		foreach(IObject ob in Giblets){		//Attach a activatetrigger to the giblets (so they can be used like buttons)
+			if(!gibs.ContainsKey(ob)){
+					IObjectActivateTrigger thisTrigger=(IObjectActivateTrigger)Game.CreateObject("ActivateTrigger");
+					thisTrigger.SetHighlightObject(ob);
+					thisTrigger.CustomId="GibletButtonTrigger";
+					thisTrigger.SetScriptMethod("Eat");
+					thisTrigger.SetWorldPosition(ob.GetWorldPosition());
+					gibs.Add(ob,thisTrigger);
+			}	
+		}
+	}
+	if(Use_ACTrigger){
+	foreach(KeyValuePair<IObject,IObjectActivateTrigger> pair in gibs){		//Move the ActivateTrigger to the giblet
+		pair.Value.SetWorldPosition(pair.Key.GetWorldPosition());
+//		Game.WriteToConsole("button moved to the meat");
+		}
+	}
+}
+public void Eat(TriggerArgs args){			//The button eating method
+	if(args.Caller!=null&&args.Caller is IObjectActivateTrigger){
+	IObjectActivateTrigger thisTrigger=(IObjectActivateTrigger)args.Caller;
+	IObject meat=thisTrigger.GetHighlightObject();
+	if(meat!=null){					//failsafe
+		IPlayer ply=(IPlayer)args.Sender;
+		float hp=ply.GetHealth();
+		if(hp<Max_Hp_Limit){
+			ply.SetHealth(hp+Nutrition_Info);
+			meat.Destroy();
+			ShowEffect(meat);
+			thisTrigger.Destroy();
+			int i=rnd.Next(0,100);
+			if(i>=Comment_Max_Factor&&Use_Random_Comments){
+				string str=comments[rnd.Next(0,comments.Count())];
+				Game.PlayEffect("CFTXT",ply.GetWorldPosition()+new Vector2(0,16),str);
+			}
+		}
+		else
+		Game.PlayEffect("CFTXT",ply.GetWorldPosition()+new Vector2(0,16),Full_Text);
+		}
+	}
+}
+public void ShowEffect(IObject obj){Vector2 pos=obj.GetWorldPosition();
+Game.PlayEffect("BLD",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+Game.PlayEffect("TR_B",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+Game.PlayEffect("TR_D",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+Game.PlayEffect("TR_B",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+Game.PlayEffect("TR_D",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+Game.PlayEffect("TR_B",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+Game.PlayEffect("TR_B",pos+new Vector2(rnd.Next(-10,10),rnd.Next(-10,10)));
+}
+
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+//=====<>=====<>=====||					Other				   ||=====<>=====<>=====//
+//=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====<>=====//
+public void CreateTimer(int interval, int count, string method, string id) {
+	IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger"); 
+	timerTrigger.SetIntervalTime(interval);
+	timerTrigger.SetRepeatCount(count);
+	timerTrigger.SetScriptMethod(method);
+	timerTrigger.CustomId = id;
+	timerTrigger.Trigger();
+}

@@ -1,0 +1,105 @@
+//Description: Spawns a mine above your head if you linger at the same spot for too long.
+
+private const float MOVE_DISTANCE_TRESHOLD = 18f;
+private const float SPAWN_MINE_TIME_MS = 4000f;
+private const float STARTUP_DELAY_TIME_MS = 7000f;
+
+public void OnStartup()
+{
+	// Update stale players and see what they are doing now-and-then
+	Events.UpdateCallback.Start(CheckStalePlayers, 340);
+}
+
+public void CheckStalePlayers(float ms)
+{
+	// Don't spawn mines during startup
+	if (Game.TotalElapsedGameTime < STARTUP_DELAY_TIME_MS)
+	{
+		// Game.WriteToConsole(Game.TotalElapsedGameTime.ToString());
+		return;
+	}
+	// for each ALIVE player
+	IPlayer[] players = Game.GetPlayers();
+	foreach (IPlayer player in players)
+	{
+		if (!player.IsDead && !player.IsRemoved && !player.IsBot)
+		{
+			PlayerMineTracker tracker = GetPlayerMineTracker(player);
+			tracker.Update();
+		}
+	}
+}
+
+private Dictionary<int, PlayerMineTracker> m_mineTrackers = new Dictionary<int, PlayerMineTracker>();
+
+private PlayerMineTracker GetPlayerMineTracker(IPlayer player)
+{
+	PlayerMineTracker playerMineTracker = null;
+	if (!m_mineTrackers.TryGetValue(player.UniqueID, out playerMineTracker))
+	{
+		playerMineTracker = new PlayerMineTracker(player);
+		m_mineTrackers.Add(player.UniqueID, playerMineTracker);
+	}
+	return playerMineTracker;
+}
+
+private class PlayerMineTracker
+{
+	
+
+	private float m_lastMoveTime = 0f;
+	private Vector2 m_lastPlayerMovePosition = Vector2.Zero;
+	private IPlayer m_player;
+
+	public PlayerMineTracker(IPlayer player)
+	{
+		m_player = player;
+		m_lastMoveTime = Game.TotalElapsedGameTime;
+		m_lastPlayerMovePosition = player.GetWorldPosition();
+	}
+
+	public void Update()
+	{
+		Vector2 currentWorldPosition = m_player.GetWorldPosition();
+		if (InSamePosition(currentWorldPosition))
+		{
+			if (Game.TotalElapsedGameTime - m_lastMoveTime > SPAWN_MINE_TIME_MS)
+			{
+				SpawnMine();
+				// reset some variables
+				m_lastMoveTime = Game.TotalElapsedGameTime;
+				m_lastPlayerMovePosition = currentWorldPosition;
+			}
+		}
+		else
+		{
+			m_lastMoveTime = Game.TotalElapsedGameTime;
+			m_lastPlayerMovePosition = currentWorldPosition;
+		}
+	}
+
+	/// <summary>
+	/// Checks if the player is within bounds of m_lastPlayerMovePosition
+	/// </summary>
+	private bool InSamePosition(Vector2 newPosition)
+	{
+		return (m_lastPlayerMovePosition - newPosition).Length() < MOVE_DISTANCE_TRESHOLD;
+	}
+
+	/// <summary>
+	/// Spawns a new mine at the player's feet
+	/// </summary>
+	public void SpawnMine()
+	{
+		if (!m_player.IsDead && !m_player.IsRemoved) // failsafe
+		{
+			IObject mine = Game.CreateObject("WPNMINETHROWN", m_player.GetWorldPosition() + Vector2.UnitY * 4f);
+			// To prevent camping on ledges and ladders just freeze the mine. Can create some interesting gameplay too!
+			if (m_player.IsLedgeGrabbing || m_player.IsClimbing)
+			{
+				mine.SetBodyType(BodyType.Static);
+			}
+		}
+	}
+
+}

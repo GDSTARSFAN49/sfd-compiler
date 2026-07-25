@@ -1,0 +1,21 @@
+public const bool Replace = true;
+
+public void OnStartup()
+{
+    IObjectTimerTrigger timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+    timer.SetIntervalTime(10);	
+    timer.SetRepeatCount(0);
+    timer.SetScriptMethod("Tick");
+    timer.Trigger();
+}
+
+public void Tick(TriggerArgs args)
+{
+   IObject[] obj = Game.GetObjectsByName("StreetsweeperCrate");
+   for (int i = 0; i < obj.Length; i++)
+    {
+        obj[i].Remove();
+        if (Replace)
+            Game.CreateObject("SupplyCrate00", obj[i].GetWorldPosition());
+    }	
+}

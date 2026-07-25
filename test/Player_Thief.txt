@@ -1,0 +1,105 @@
+// Do not judge me because of my coding. I do this because I like to. After all, I'm a beginner.
+
+static bool SwapTeams = false; // Enables teamswapping (Hunter's Team <=> Victim's Team). Default FALSE. (might be unfair)
+static bool Message = false; // Enables message on startup. Default FALSE.
+
+static bool GrabSteal = true;
+static bool DiveSteal = true;
+
+public void OnStartup()
+{
+	IObjectTimerTrigger Timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	Timer.SetIntervalTime(0);
+	Timer.SetRepeatCount(0);
+	Timer.SetScriptMethod("Checker");
+	Timer.Trigger();
+
+	if(Message){
+	Game.RunCommand("/msg -");
+	Game.RunCommand("/msg ===== Player Thief =====");
+	Game.RunCommand("/msg =      by Ol1vver      =");
+	Game.RunCommand("/msg ========================");
+	Game.RunCommand("/msg - Catch a player and press the Grab key.");
+
+	if(SwapTeams)
+	{
+		Game.RunCommand("/msg + Team Swapping is ON.");
+	}
+	else
+	{
+		Game.RunCommand("/msg + Team Swapping is OFF.");
+	}
+
+	if(GrabSteal)
+	{
+		Game.RunCommand("/msg + Grab Stealing is ON.");
+	}
+	else
+	{
+		Game.RunCommand("/msg + Grab Stealing is OFF.");
+	}
+
+	if(DiveSteal)
+	{
+		Game.RunCommand("/msg + Dive Stealing is ON.");
+	}
+	else
+	{
+		Game.RunCommand("/msg + Dive Stealing is OFF.");
+	}
+
+	Game.RunCommand("/msg -");
+	}
+}
+
+public void Checker(TriggerArgs args) // Checking player input, etc.
+{
+	foreach(IPlayer hunter in Game.GetPlayers()) // Making everyone able to swap
+	{
+		IUser HunterUser = hunter.GetUser(); // Getting hunter's user
+		var HunterTeam = hunter.GetTeam(); // Getting hunter's team
+///////////////////////////////////////////////////////////////////////////////////
+		if(hunter.IsHoldingPlayerInDive && hunter.KeyPressed(VirtualKey.GRAB) && DiveSteal) // Checking hunter input
+		{
+//////// Getting stuff
+			IPlayer DiveVictim = Game.GetPlayer(hunter.HoldingPlayerInDiveID); // Getting victim player
+			IUser DiveVictimUser = DiveVictim.GetUser(); // Getting victim's user
+			var DiveVictimTeam = DiveVictim.GetTeam(); // Getting victim's team
+//////// Doing stuff
+			DiveVictim.SetUser(HunterUser); // Taking control of the hunter to the victim
+			hunter.SetUser(DiveVictimUser); // Taking control of the victim to the hunter
+			if(!SwapTeams) // Checking if SwapTeams is off
+			{
+				hunter.SetTeam(DiveVictimTeam); // Setting hunter's team to the victim's
+				DiveVictim.SetTeam(HunterTeam); // Setting victim's team to the hunter's
+			}
+			else // Else, swap teams
+			{
+				hunter.SetTeam(HunterTeam); // Setting hunter's team back
+				DiveVictim.SetTeam(DiveVictimTeam); // Setting victim's team back
+			}
+		}
+///////////////////////////////////////////////////////////////////////////////////
+		if(hunter.IsHoldingPlayerInGrab && hunter.KeyPressed(VirtualKey.GRAB) && GrabSteal) // Checking hunter input
+		{
+//////// Getting stuff
+			IPlayer DiveVictim = Game.GetPlayer(hunter.HoldingPlayerInGrabID); // Getting victim player
+			IUser DiveVictimUser = DiveVictim.GetUser(); // Getting victim's user
+			var DiveVictimTeam = DiveVictim.GetTeam(); // Getting victim's team
+//////// Doing stuff
+			DiveVictim.SetUser(HunterUser); // Taking control of the hunter to the victim
+			hunter.SetUser(DiveVictimUser); // Taking control of the victim to the hunter
+			if(!SwapTeams) // Checking if SwapTeams is off
+			{
+				hunter.SetTeam(DiveVictimTeam); // Setting hunter's team to the victim's
+				DiveVictim.SetTeam(HunterTeam); // Setting victim's team to the hunter's
+			}
+			else // Else, swap teams
+			{
+				hunter.SetTeam(HunterTeam); // Setting hunter's team back
+				DiveVictim.SetTeam(DiveVictimTeam); // Setting victim's team back
+			}
+		}
+///////////////////////////////////////////////////////////////////////////////////
+	}
+}

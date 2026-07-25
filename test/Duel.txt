@@ -1,0 +1,532 @@
+//Users
+static List<Dueler> Duelers = new List<Dueler>();
+
+//World Settings
+static Area gameWorld = new Area(1000,-1000,-1000,1000);
+
+//Match Settings
+static int Rounds = 0;
+static int Max_Rounds = 10;
+
+//Collect Users 0 - In Order, 1 - Random Order
+static int collectType = 0;
+//Use Teams Or Not
+static bool UseTeams = true;
+
+//User Commands
+Events.UserMessageCallback m_userMessageCallback = null;
+Color cDuel = new Color(232, 85, 188);
+
+//					//
+//	Startup Functions
+//					//
+
+public void OnStartup(){
+	m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+	
+	//Get Stored Data
+	if(!Game.LocalStorage.TryGetItemInt("SORTTYPE", out collectType)){
+		collectType = 0;
+	}
+	if(!Game.LocalStorage.TryGetItemBool("TEAMS", out UseTeams)){
+		UseTeams = true;
+	}
+	
+	Game.RunCommand("/msg -------------->");
+	Game.RunCommand("/msg Welcome To The Duel");
+	switch(collectType){
+		case 0:
+			Game.RunCommand("/msg Sort Type Is Set To [In-Order]");
+		break;
+		case 1:
+			Game.RunCommand("/msg Sort Type Is Set To [Random]");
+		break;
+	}
+	switch(UseTeams){
+		case true:
+			Game.RunCommand("/msg Duos Are [Enabled]");
+		break;
+		case false:
+			Game.RunCommand("/msg Duos Are [Disabled]");
+		break;
+	}
+	Game.RunCommand("/msg -------------->");
+
+	//Get Map Specific Objects
+	foreach(IObjectTrigger obj in Game.GetObjectsByName("RandomTrigger")){
+		obj.SetEnabled(false);
+	}
+	foreach(IObject obj in Game.GetObjectsByArea(gameWorld)){
+		if(!(obj is IPlayer) && obj.GetBodyType() == BodyType.Dynamic && obj.CustomID == ""){
+			obj.CustomID = "PERM";
+		}
+		if(!(obj is IPlayer) && (obj.Name == "PoolTable00" || obj.Name == "Shelf00" || obj.Name == "Spotlight00A" || obj.Name == "Spotlight00AWeak" || obj.Name == "Spotlight00B" || obj.Name == "WoodCounter00" || obj.Name == "MetalCounter00" || obj.Name == "WoodSupport00A" || obj.Name == "WoodSupport00B") && obj.CustomID == ""){
+			obj.CustomID = "PERM";
+		}
+	}
+
+	Game.AutoVictoryConditionEnabled = false;
+	Game.StartupSequenceEnabled = false;
+	Game.DeathSequenceEnabled = false;
+	Game.RunCommand("/suddendeath 0");
+	Game.RunCommand("/timelimit 0");
+	Game.RunCommand("/maprotation 1");
+
+	if(Game.GetActiveUsers().Length > 1){
+		BeginStart();
+	}else{
+		BeginWait();
+	}
+}
+
+//					//
+//	User Input Functions
+//					//
+
+public void OnUserMessage(UserMessageCallbackArgs args) {
+	if(args.User.IsHost || args.User.IsModerator){
+		if(args.IsCommand){
+			if(args.Command == "KSHELP"){
+				Game.ShowChatMessage("'/DUELTEAMS [0-1]' Enable or Disable Teams",cDuel,args.User.UserIdentifier);	
+				Game.ShowChatMessage("'/DUELSORT [0-1]' Set Sort To 'In-Order' or 'Random'",cDuel,args.User.UserIdentifier);	
+			}
+			if(args.Command == "DUELTEAMS"){
+				if(args.CommandArguments == ""){
+					bool temp = true;
+					if(!Game.LocalStorage.TryGetItemBool("SORTTYPE",out temp)){
+						temp = true;
+					}
+					if(!temp){
+						Game.ShowChatMessage("Duos Are [Disabled]",cDuel,args.User.UserIdentifier);							
+					}
+					if(temp){
+						Game.ShowChatMessage("Duos Are [Enabled]",cDuel,args.User.UserIdentifier);						
+					}
+				}
+				if(args.CommandArguments == "0"){
+					Game.LocalStorage.SetItem("TEAMS",false);
+					Game.ShowChatMessage("Duos Set To [Disabled]",cDuel,args.User.UserIdentifier);
+					UseTeams = false;
+				}
+				if(args.CommandArguments == "1"){
+					Game.LocalStorage.SetItem("TEAMS",true);
+					Game.ShowChatMessage("Duos Set To [Enabled]",cDuel,args.User.UserIdentifier);
+					UseTeams = false;
+				}			
+			}
+			if(args.Command == "DUELSORT"){
+				if(args.CommandArguments == ""){
+					int temp = 0;
+					if(!Game.LocalStorage.TryGetItemInt("SORTTYPE",out temp)){
+						temp = 0;
+					}
+					if(temp == 0){
+						Game.ShowChatMessage("Sort Type Is [In-Order]",cDuel,args.User.UserIdentifier);	
+						collectType = 0;						
+					}
+					if(temp == 1){
+						Game.ShowChatMessage("Sort Type Set To [Random]",cDuel,args.User.UserIdentifier);	
+						collectType = 1;
+					}
+				}
+				if(args.CommandArguments == "0"){
+					Game.LocalStorage.SetItem("SORTTYPE",0);
+					Game.ShowChatMessage("Sort Type Set To [In-Order]",cDuel,args.User.UserIdentifier);
+				}
+				if(args.CommandArguments == "1"){
+					Game.LocalStorage.SetItem("SORTTYPE",1);
+					Game.ShowChatMessage("Sort Type Set To [Random]",cDuel,args.User.UserIdentifier);
+				}	
+			}
+		}
+	}
+}
+
+//					//
+//	Loop Functions
+//					//
+
+public void BeginStart(){
+	foreach(IObject obj in Game.GetObjectsByCustomID("WAIT")){
+		obj.Remove();
+	}
+	ResetField();
+	
+	IObjectTimerTrigger timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	timer.SetIntervalTime(0);    
+	timer.SetRepeatCount(0);
+	timer.SetScriptMethod("GameStep");
+	timer.CustomID = "GAME";
+	timer.Trigger();
+}
+
+public void BeginWait(){
+	foreach(IObject obj in Game.GetObjectsByCustomID("GAME")){
+		obj.Remove();
+	}
+	Game.RunCommand("/msg Waiting For More Players To Begin...");
+	Dueler.Reset();
+	ResetField();
+
+	IObjectTimerTrigger timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	timer.SetIntervalTime(0);    
+	timer.SetRepeatCount(0);
+	timer.SetScriptMethod("WaitStep");
+	timer.CustomID = "WAIT";
+	timer.Trigger();
+}
+
+public void WaitStep(TriggerArgs args){
+	Dueler.UpdateUsers();
+	
+	if(Duelers.Count > 1){
+		BeginStart();
+	}
+}
+
+public void GameStep(TriggerArgs args){
+	Dueler.UpdateUsers();
+	Dueler.AddTime();
+
+	if(Duelers.Count <= 1){
+		BeginWait();
+	}
+
+	Dueler.DuelCheck();
+}
+
+//					//
+//	User Functions
+//					//
+
+class Dueler{
+	//Class Stuff
+	public IUser User = null;
+	public int timeLastMatch = 0;
+	public PlayerTeam Team = PlayerTeam.Independent;
+	
+	//Static Stuff
+	static List<Dueler> LastWinners = new List<Dueler>();
+	static List<Dueler> LastFighters = new List<Dueler>();
+	static List<Dueler> Fighters = new List<Dueler>();
+	static int RoundTime = 0;	
+	static int WaitTime = 0;
+	static bool IsMatch = false;
+
+	
+	public Dueler(IUser usr){
+		User = usr;
+	}
+	public static void AddTime(){
+		foreach(Dueler obj in Duelers){
+			if(!Fighters.Contains(obj)){
+				obj.timeLastMatch ++;
+			}else{
+				obj.timeLastMatch = 0;
+			}
+		}
+	}
+	public static void Reset(){		
+		foreach(Dueler obj in Duelers){
+			obj.timeLastMatch = 0;
+		}
+		IsMatch = false;
+		RoundTime = 0;
+		WaitTime = 0;
+		Fighters.Clear();
+		LastWinners.Clear();
+	}
+	public static void UpdateUsers(){
+		for(int i = 0;i < Duelers.Count;i ++){
+			if(Duelers[i].User != null && Duelers[i].User.IsRemoved){			
+				Duelers.RemoveAt(i);
+			}
+		}
+			
+		foreach(IUser usr in Game.GetActiveUsers()){
+			bool check = false;
+				
+			foreach(Dueler obj in Duelers){
+				if(obj.User == usr){
+					check = true;
+				}
+			}
+			if(!check){
+				Duelers.Add(new Dueler(usr));
+			}
+		}	
+	}
+	public static void DuelCheck(){
+		if(Rounds < Max_Rounds){	
+			if(!IsMatch){
+				//Game.RunCommand("/msg " + WaitTime);
+				if(WaitTime == 0){
+					WaitTime = 400;
+				}
+				if(WaitTime == 300){
+					GetFighters();
+				}
+				if(WaitTime == 150){
+					Game.RunCommand("/msg 3");
+				}
+				if(WaitTime == 100){
+					Game.RunCommand("/msg 2");
+				}
+				if(WaitTime == 50){
+					Game.RunCommand("/msg 1");
+				}
+				if(WaitTime == 1){
+					StartMatch();
+				}
+				if(WaitTime > 0){
+					WaitTime --;
+				}
+			}else{
+				bool TeamsActive = false;
+				int[] teams = new int[5];
+				foreach(Dueler obj in Fighters){
+					IPlayer ply = obj.User.GetPlayer();
+					if(ply != null && !ply.IsRemoved && !ply.IsDead){
+						teams[(int)ply.GetTeam()] ++;
+					}
+					if(obj.Team == PlayerTeam.Independent){
+						TeamsActive = false;
+					}else{
+						TeamsActive = true;
+					}
+				}
+				if(teams[0] <= 1 && !TeamsActive){
+					RoundTime --;
+				}
+				if((teams[1] == 0 || teams[2] == 0) && TeamsActive){
+					RoundTime --;
+				}
+				if(RoundTime == 150){
+					StopMatch();
+				}
+				if(RoundTime == 0){
+					IsMatch = false;
+					ResetField();
+				}
+			}
+		}else{
+			Game.SetGameOver("Going To Next Map...");
+		}
+	}
+	public static void GetFighters(){
+		Fighters = new List<Dueler>();
+		List<Dueler> pr = PrioritizeFighters();
+		
+		bool TeamsEnabled = false;
+		if(Duelers.Count > 4 && UseTeams){
+			TeamsEnabled = true;
+		}
+		
+		if(Rounds == 0){
+			if(!TeamsEnabled){
+				int[] num = GetArrangedArray(2,Duelers.Count);
+				Fighters.Add(Duelers[num[0]]);
+				Fighters.Add(Duelers[num[1]]);
+			}else{
+				int[] num = GetArrangedArray(4,Duelers.Count);
+				Fighters.Add(Duelers[num[0]]);
+				Fighters.Add(Duelers[num[1]]);
+				Fighters.Add(Duelers[num[2]]);
+				Fighters.Add(Duelers[num[3]]);
+			}
+				
+		}else{
+			switch(collectType){
+				case 0:
+					if(!TeamsEnabled){
+						if(LastWinners.Count > 0){
+							Fighters.Add(LastWinners[0]);
+						}else{
+							Fighters.Add(pr[0]);
+						}
+						if(pr[0] == Fighters[0]){
+							Fighters.Add(pr[1]);
+						}else{
+							Fighters.Add(pr[0]);
+						}
+					}else{
+						int Team1Size = 2;
+						foreach(Dueler obj in LastWinners){
+							Fighters.Add(obj);
+							Team1Size --;
+						}
+						int Team2Size = 0;
+						int index = 0;
+						while(Team2Size < 2 + Team1Size){
+							if(!Fighters.Contains(pr[index])){
+								Fighters.Add(pr[index]);
+								Team2Size ++;
+							}
+							index ++;
+						}
+					}
+				break;
+				case 1:
+					if(!TeamsEnabled){
+						Fighters.Add(pr[0]);
+						Fighters.Add(pr[1]);
+					}else{
+						int[] num = GetArrangedArray(4,4);
+						Fighters.Add(pr[num[0]]);
+						Fighters.Add(pr[num[1]]);	
+						Fighters.Add(pr[num[2]]);
+						Fighters.Add(pr[num[3]]);						
+					}
+				break;
+			}
+		}
+		if(!TeamsEnabled){
+			foreach(Dueler o in Fighters){
+				o.Team = PlayerTeam.Independent;
+			}
+			Game.RunCommand("/msg [" + Fighters[0].User.Name + "] and [" + Fighters[1].User.Name + "] Are Next");
+		}else{
+			Fighters[0].Team = PlayerTeam.Team1;
+			Fighters[1].Team = PlayerTeam.Team1;
+			Fighters[2].Team = PlayerTeam.Team2;
+			Fighters[3].Team = PlayerTeam.Team2;
+			Game.RunCommand("/msg [" + Fighters[0].User.Name + " with " + Fighters[1].User.Name + "] and [" + Fighters[2].User.Name + " with " + Fighters[3].User.Name + "] Are Next");
+		}
+	}
+	public static List<Dueler> PrioritizeFighters(){
+	
+		Dueler[] PR = new Dueler[8];	
+		foreach(Dueler obj in Duelers){
+			int p = 0;
+			foreach(Dueler trg in Duelers){
+				if(obj != trg && obj.timeLastMatch >= trg.timeLastMatch){
+					p ++;
+					if(trg.timeLastMatch == obj.timeLastMatch){
+						obj.timeLastMatch ++;
+					}
+				}
+			}
+			PR[p] = obj;
+		}
+		
+		List<Dueler> Priority = new List<Dueler>();
+		foreach(Dueler o in PR){
+			if(o != null){
+				Priority.Add(o);
+			}
+		}
+		Priority.Reverse();
+		
+		return Priority;
+	}
+	public static void StartMatch(){
+		for(int i = 0;i < Fighters.Count;i ++){
+			Dueler obj = Fighters[i];
+			if(obj == null || obj.User.IsRemoved){
+				foreach(Dueler o in Duelers){
+					if(!Fighters.Contains(o)){
+						Fighters[i] = o;
+						Fighters[i].Team = obj.Team;
+						Game.RunCommand("/msg Substituting in " + o.User.Name);
+						break;
+					}
+				}
+			}
+		}
+	
+		IObject[] spawns = GetSpawns();
+		int[] spawnIndex = GetArrangedArray(Fighters.Count,spawns.Length);
+		for(int i = 0;i < Fighters.Count;i ++){
+			IPlayer ply = Game.CreatePlayer(spawns[spawnIndex[i]].GetWorldPosition());
+			ply.SetProfile(Fighters[i].User.GetProfile());
+			ply.SetTeam(Fighters[i].Team);
+			ply.SetBotBehavior(new BotBehavior(true,Fighters[0].User.BotPredefinedAIType));
+			Fighters[i].User.SetPlayer(ply);
+		}
+		IsMatch = true;
+		RoundTime = 300;
+		Game.RunCommand("/msg Fight!");
+	}
+	public static void StopMatch(){
+		LastWinners = new List<Dueler>();
+		bool AnyWinner = false;
+		int team = -1;
+		foreach(Dueler obj in Fighters){
+			IPlayer ply = obj.User.GetPlayer();
+			if(ply != null && !ply.IsRemoved && !ply.IsDead){
+				AnyWinner = true;
+				if(ply.GetTeam() == PlayerTeam.Independent){
+					Game.RunCommand("/msg " + ply.Name + " Wins!");
+					LastWinners.Add(obj);
+				}else{
+					Game.RunCommand("/msg Team " + (int)ply.GetTeam() + " Wins!");
+					team = (int)ply.GetTeam();
+				}
+				break;
+			}
+		}
+		if(!AnyWinner){
+			Game.RunCommand("/msg It Was A Draw!");
+		}
+		foreach(Dueler obj in Fighters){
+			if((int)obj.Team == team){
+				LastWinners.Add(obj);
+			}
+		}
+		LastFighters = Fighters;
+		Rounds ++;
+	}
+	public static int[] GetArrangedArray(int num,int Maximum){
+		Random rnd = new Random();
+		List<int> Arr = new List<int>();
+		
+		while(Arr.Count < num){
+			int x = rnd.Next(0,Maximum);
+			if(!Arr.Contains(x)){
+				Arr.Add(x);
+			}else{
+				x = 0;
+				while(Arr.Contains(x)){
+					x ++;
+				}
+				Arr.Add(x);
+			}
+		}
+		
+		return Arr.ToArray();
+	}
+};
+
+//					//
+//	World Functions
+//					//
+
+public static void ResetField(){
+	foreach(IPlayer ply in Game.GetPlayers()){
+		ply.Remove();
+	}
+	foreach(IObject obj in Game.GetObjectsByName("SupplyCrate00")){
+		obj.Remove();
+	}
+	foreach(IObject obj in Game.GetObjectsByArea(gameWorld)){
+		if(obj.Name.Length >= 3 && obj.Name.Substring(0,3) == "Wpn"){
+			obj.Remove();
+		}
+		if(obj.CustomID == "" && obj.GetBodyType() == BodyType.Dynamic){
+			obj.Remove();
+		}
+		if(obj.CustomID == "" && (obj.Name == "PoolTable00" || obj.Name == "Shelf00" || obj.Name == "Spotlight00A" || obj.Name == "Spotlight00AWeak" || obj.Name == "Spotlight00B" || obj.Name == "WoodCounter00" || obj.Name == "MetalCounter00" || obj.Name == "WoodSupport00A" || obj.Name == "WoodSupport00B")){
+			obj.Remove();
+		}
+	}
+	
+	foreach(IObjectTrigger obj in Game.GetObjectsByName("RandomTrigger")){
+		obj.SetEnabled(true);
+		obj.Trigger();
+		obj.SetEnabled(false);
+	}
+}
+
+public static IObject[] GetSpawns(){
+	return Game.GetObjectsByName("SpawnPlayer");
+}

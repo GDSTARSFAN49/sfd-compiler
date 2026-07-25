@@ -1,0 +1,15 @@
+//Heal
+public void OnStartup(){
+	IObjectTimerTrigger Timer1 = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	Timer1.SetIntervalTime(1000);         //The amount of time inbetween each healing.(the smaller the number, the faster.)
+	Timer1.SetRepeatCount(0);
+	Timer1.SetScriptMethod("SSS");
+	Timer1.Trigger();
+}
+public void SSS(TriggerArgs args)
+{
+	foreach(IPlayer ply in Game.GetPlayers())
+	{
+		ply.SetHealth(ply.GetHealth()+0.75f);  //The amount of health each time. 100f is full health. 0f is nothing(you dont need the f unless you're putting a decimal)
+	}
+}

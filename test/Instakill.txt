@@ -1,0 +1,32 @@
+PlayerModifiers Mod;
+IObjectPlayerModifierInfo q;
+
+public void OnStartup()
+{
+	IObjectOnUpdateTrigger Updater = (IObjectOnUpdateTrigger)Game.CreateObject("OnUpdateTrigger");
+	Updater.SetScriptMethod("Update");
+	Updater.Trigger();
+	q = (IObjectPlayerModifierInfo)Game.CreateObject("PlayerModifierInfo");
+	Mod = q.GetModifiers();
+	Mod.ExplosionDamageTakenModifier = 100;
+	Mod.ProjectileDamageTakenModifier = 100;
+	Mod.ProjectileCritChanceTakenModifier = 100;
+	Mod.MeleeDamageTakenModifier = 100;
+}
+
+public void Update(TriggerArgs args)
+{
+	foreach(IObject gib in Game.GetObjectsByName(new string[]{"Giblet00","Giblet01","Giblet02","Giblet03","Giblet04"}))
+	{
+		gib.Remove();
+	}
+	foreach(IPlayer ply in Game.GetPlayers())
+	{
+		ply.SetHitEffect(PlayerHitEffect.Metal);
+		ply.SetModifiers(Mod);
+		if(ply.IsDead || ply.IsRocketRiding)
+		{
+			ply.Remove();
+		}
+	}
+}

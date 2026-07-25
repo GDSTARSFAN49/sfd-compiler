@@ -1,0 +1,495 @@
+static List<IPlayer> Clother = new List<IPlayer>();
+static List<IUser> Voter = new List<IUser>();
+Events.PlayerKeyInputCallback Inputer = null;
+bool GameDead = false, Popup = false, Timer = false;
+int y = 0, n = 0;
+int mm = 0, ss = 0;
+IObjectTimerTrigger aw = null;
+//IObject pl = null;
+string theme = "";
+
+public void OnStartup()
+{
+	//pl = (IObject)Game.CreateObject("InvisibleBlock", new Vector2(9999999, 99999999));
+	aw = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	aw.SetRepeatCount(0);
+	aw.SetScriptMethod("TickMe");
+	Events.UserMessageCallback.Start(Chat);
+	if(Game.DeathSequenceEnabled)GameDead = true;
+	if(Convert.ToBoolean(Game.LocalStorage.GetItem("animrp")))Inputer = Events.PlayerKeyInputCallback.Start(Input);
+	foreach(IPlayer p in Game.GetPlayers())
+	if(Convert.ToBoolean(Game.LocalStorage.GetItem("nickrp")))
+		{
+			p.SetNametagVisible(false);
+			p.SetStatusBarsVisible(false);
+		}
+}
+
+public void Chat(UserMessageCallbackArgs args)
+{
+	if(args.IsCommand)
+		{
+			switch(args.Command)
+				{
+					case "L":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								Game.CreateDialogue(args.CommandArguments, Color.Yellow, (args.User.GetPlayer()), "", -1, false);
+								foreach(IPlayer p in Game.GetPlayers().Where(x => (args.User.GetPlayer().GetWorldPosition()-x.GetWorldPosition()).Length() <= 80))
+									{
+										Game.ShowChatMessage(args.User.Name + ": " + args.CommandArguments, Color.Yellow, p.UserIdentifier);
+									}
+							}
+ 					break;
+					case "S":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								Game.CreateDialogue(args.CommandArguments, Color.Red, (args.User.GetPlayer()), "", -1, false);
+								foreach(IPlayer p in Game.GetPlayers().Where(x => (args.User.GetPlayer().GetWorldPosition()-x.GetWorldPosition()).Length() <= 250))
+									{
+										Game.ShowChatMessage(args.User.Name + ": " + args.CommandArguments, Color.Red, p.UserIdentifier);
+									}
+							}
+ 					break;
+					case "ANO":
+						if(args.Message.Contains(" "))
+							{
+								Game.ShowChatMessage("ANONYMOUS: " + args.CommandArguments, Color.Grey);
+							}
+ 					break;
+					case "ME":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								Game.PlayEffect("CFTXT", args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0),args.CommandArguments);
+								if((!Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal"))))
+									{
+										foreach(IPlayer p in Game.GetPlayers().Where(x => (args.User.GetPlayer().GetWorldPosition()-x.GetWorldPosition()).Length() <= 80))
+											{
+												Game.ShowChatMessage("*" + args.User.Name + " " + args.CommandArguments + ".", Color.Cyan, p.UserIdentifier);
+											}
+							}else{
+										Game.ShowChatMessage("*" + args.User.Name + " " + args.CommandArguments + ".", Color.Cyan);
+									}
+							}
+ 					break;
+					case "DO":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								if((!Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal"))))
+									{
+										foreach(IPlayer p in Game.GetPlayers().Where(x => (args.User.GetPlayer().GetWorldPosition()-x.GetWorldPosition()).Length() <= 80))
+											{
+												Game.ShowChatMessage(args.CommandArguments + ".(" + args.User.Name + ")", Color.Cyan, p.UserIdentifier);
+											}
+							}else{
+										Game.ShowChatMessage(args.CommandArguments + ".(" + args.User.Name + ")", Color.Cyan);
+									}
+							}
+ 					break;
+					case "TRY":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								Game.PlayEffect("CFTXT",args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0),args.CommandArguments);
+								if((!Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal"))))
+									{
+										foreach(IPlayer p in Game.GetPlayers().Where(x => (args.User.GetPlayer().GetWorldPosition()-x.GetWorldPosition()).Length() <= 80))
+											{
+												Random r = new Random();
+												if(r.NextDouble() < 0.5)
+													{
+														Game.ShowChatMessage(args.User.Name + " " + args.CommandArguments + ". |FALSE|", Color.Red, p.UserIdentifier);
+											}else{
+														Game.ShowChatMessage(args.User.Name + " " + args.CommandArguments + ". |TRUE|", Color.Green, p.UserIdentifier);
+													}
+											}
+							}else{
+										Random r = new Random();
+										if(r.NextDouble() < 0.5)
+											{
+												Game.ShowChatMessage(args.User.Name + " " + args.CommandArguments + ". |FALSE|", Color.Red);
+									}else{
+												Game.ShowChatMessage(args.User.Name + " " + args.CommandArguments + ". |TRUE|", Color.Green);
+											}
+									}
+							}
+ 					break;
+					case "ROLL":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								string[] arr = args.CommandArguments.Split(' ');
+								bool isNumeric = int.TryParse(arr[0], out n);
+								if(isNumeric)
+									{
+										Random r = new Random();
+										int resu = Math.Abs(Convert.ToInt32(arr[0]));
+										int roll = r.Next(resu);
+										Game.PlayEffect("CFTXT",args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0),roll.ToString());
+										if((!Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal"))))
+											{
+												foreach(IPlayer p in Game.GetPlayers().Where(x => (args.User.GetPlayer().GetWorldPosition()-x.GetWorldPosition()).Length() <= 80))
+													{
+														Game.ShowChatMessage(args.User.Name + " has rolled a " + roll.ToString() + " of " + resu.ToString() + ".", Color.Cyan, p.UserIdentifier);
+													}
+									}else{
+												Game.ShowChatMessage(args.User.Name + " has rolled a " + roll.ToString() + " of " + resu.ToString() + ".", Color.Cyan);
+											}
+									}
+							}
+ 					break;
+					case "Y":
+						if(!Voter.Contains(args.User) && Popup)
+							{
+								if(args.User.GetPlayer() != null)Game.PlayEffect("CFTXT",args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0), "YES");
+								Voter.Add(args.User);
+								y++;
+								Game.WriteToConsole(args.User.Name + " - voted YES.");
+								Game.PlaySound("MenuOK", Vector2.Zero);
+								Game.ShowPopupMessage("Vote for: " + theme + "\n [y/n]\n "+ y.ToString() +" : " + n.ToString(), Color.Green);
+							}
+					break;
+					case "N":
+						if(!Voter.Contains(args.User) && Popup)
+							{
+								if(args.User.GetPlayer() != null)Game.PlayEffect("CFTXT",args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0), "NO");
+								Voter.Add(args.User);
+								n++;
+								Game.WriteToConsole(args.User.Name + " - voted NO.");
+								Game.PlaySound("MenuOK", Vector2.Zero);
+								Game.ShowPopupMessage("Vote for: " + theme + "\n [y/n]\n "+ y.ToString() +" : " + n.ToString(), Color.Green);
+							}
+					break;
+					case "CLOTH":
+						if(args.User.GetPlayer() != null && args.Message.Contains(" "))
+							{
+								Game.PlaySound("Draw1", Vector2.Zero);
+								string[] arr = args.CommandArguments.Split(' ');
+								string hewo = arr[0].ToUpper();
+								string first = "DarkGray";
+								string second = "LightGray";
+								string item = "eee";
+								if(args.User.GetPlayer().GetProfile().Gender == Gender.Female && (hewo == "CHESTOVER" || hewo == "CHESTUNDER" || hewo == "LEGS"))item = item + "_fem";
+								if(arr.Count() >= 2)item = arr[1];
+								if(arr.Count() >= 3)first = arr[2];
+								if(arr.Count() >= 4)second = arr[3];
+								IProfile pr = args.User.GetPlayer().GetProfile();
+								switch(hewo)
+									{
+										case "HEAD":
+											pr.Head = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "ACCESORY":
+											pr.Accesory = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "CHESTOVER":
+											pr.ChestOver = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "CHESTUNDER":
+											pr.ChestUnder = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "HANDS":
+											pr.Hands = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first);
+										break;
+										case "WAIST":
+											pr.Waist = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "LEGS":
+											pr.Legs = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "FEET":
+											pr.Feet = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+										case "SKIN":
+											pr.Skin = new IProfileClothingItem(FirstCharToUpper(item), "Clothing" + first, "Clothing" + second);
+										break;
+									}
+								args.User.GetPlayer().SetProfile(pr);
+							}
+ 					break;
+					case "STRIP":
+						if(args.User.GetPlayer() != null)
+							{
+								if(!Clother.Contains(args.User.GetPlayer()))
+									{
+										Clother.Add(args.User.GetPlayer());
+										Game.PlayEffect("CFTXT", args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0), "Stripped!");
+										Game.PlaySound("Draw1", Vector2.Zero);
+										IProfile pr = new IProfile();
+										pr.Skin = args.User.GetPlayer().GetProfile().Skin;
+										if(args.CommandArguments != "")pr.Head = args.User.GetPlayer().GetProfile().Head;
+										args.User.GetPlayer().SetProfile(pr);
+							}else{
+										Clother.Remove(args.User.GetPlayer());
+										Game.PlayEffect("CFTXT", args.User.GetPlayer().GetWorldPosition() + new Vector2(0,0), "Dressed!");
+										Game.PlaySound("Draw1", Vector2.Zero);
+										IProfile pr = args.User.GetProfile();
+										args.User.GetPlayer().SetProfile(pr);
+									}
+							}
+ 					break;
+	case "RPCOMMANDS":
+		Game.ShowChatMessage("----------------------------------------", Color.White, args.User.UserIdentifier);
+		Game.ShowChatMessage("/ME - this command shows the action, emotions or other details of the character from the 1st person.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/DO - this command is intended to describe the events and details of the game world in the present tense.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/L - local chat, your message will be only seen by people nearby.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/S - same as local, but for a far distances.(screaming)", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/TRY - this command is intended for a random outcome of the situation.(TRUE-FALSE)", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/Y - votes YES if voting started", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/N - votes NO if voting started", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/ROLL - rolls a random number.(0-your number)", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/CLOTHINFO - shows info about /cloth command.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/ANO - anonymous global chat message.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("WALKING BUTTON + WEAPON SELECT - different animations, /RPANIM should be enabled.(1, 4, 5)", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("----------------------------------------", Color.White, args.User.UserIdentifier);
+		Game.ShowChatMessage("/ANIMS - allows host to enable/disable anims.(Current state: " + Convert.ToBoolean(Game.LocalStorage.GetItem("animrp")) + ")", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/NICKS - allows host to hide/show player nicks.(Current state: " + Convert.ToBoolean(Game.LocalStorage.GetItem("nickrp")) + ")", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/GLOBALMS - allows host to enable/disable ME/DO action zones to see the message. You still can use local chats.(Current state: " + Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal")) + ")", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/VOTE - starts voting for your theme.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/PMS - message in the center of the screen.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/WEATHER - changes weather.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/GAMEOV - GAMEOVER with custom text.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/SCORE - resets score of every user.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/SOUND - plays a sound.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/TIMER minutes, seconds - starts the timer with a custom time.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/TIMERSTOP - stops the timer.(Mods/Host)", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("----------------------------------------", Color.White, args.User.UserIdentifier);
+ break;
+	case "CLOTHINFO":
+		Game.ShowChatMessage("----------------------------------------", Color.White, args.User.UserIdentifier);
+		Game.ShowChatMessage("/CLOTH slot, item, color1, color2 - allows to change your outfit.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("/STRIP - undresses/dresses your character, if you enter any character in arguments, head slot will not be removed.", Color.Magenta, args.User.UserIdentifier);
+		Game.ShowChatMessage("HOW TO CHANGE OUTFIT EXAMPLE:", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/cloth head cap", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("/cloth skin mechSkin DarkRed LightGreen", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("Profile slots: Skin, Head, Accesory, ChestOver, ChestUnder, Hands, Waist, Legs, Feet.", Color.Red, args.User.UserIdentifier);
+		Game.ShowChatMessage("----------------------------------------", Color.White, args.User.UserIdentifier);
+ break;
+
+//простолюдинки :)
+
+					case "ANIMS":
+						if(args.User.IsHost)
+							{
+								Game.LocalStorage.SetItem("animrp", !Convert.ToBoolean(Game.LocalStorage.GetItem("animrp")));
+								Game.ShowChatMessage("ENABLE ANIMATIONS: " + Convert.ToBoolean(Game.LocalStorage.GetItem("animrp")), Color.Magenta);
+								if(Convert.ToBoolean(Game.LocalStorage.GetItem("animrp")))Inputer = Events.PlayerKeyInputCallback.Start(Input);
+								if(!Convert.ToBoolean(Game.LocalStorage.GetItem("animrp")))Inputer.Stop();
+							}
+					break;
+					case "GLOBALMS":
+						if(args.User.IsHost)
+							{
+								Game.LocalStorage.SetItem("rpglobal", !Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal")));
+								Game.ShowChatMessage("GLOBAL MESSAGES: " + Convert.ToBoolean(Game.LocalStorage.GetItem("rpglobal")), Color.Magenta);
+							}
+					break;
+					case "NICKS":
+						if(args.User.IsHost)
+							{
+								Game.LocalStorage.SetItem("nickrp", !Convert.ToBoolean(Game.LocalStorage.GetItem("nickrp")));
+								Game.ShowChatMessage("HIDE NICKS: " + Convert.ToBoolean(Game.LocalStorage.GetItem("nickrp")), Color.Magenta);
+								foreach(IPlayer p in Game.GetPlayers())
+								if(Convert.ToBoolean(Game.LocalStorage.GetItem("nickrp")))
+									{
+										p.SetNametagVisible(false);
+										p.SetStatusBarsVisible(false);
+							}else{
+										p.SetNametagVisible(true);
+										p.SetStatusBarsVisible(true);
+									}
+							}
+					break;
+					case "WEATHER":
+						if(args.User.IsHost || args.User.IsModerator)
+							{
+								string wett = args.CommandArguments.ToUpper();
+								if(wett == "NONE")Game.SetWeatherType(WeatherType.None);
+								if(wett == "SNOW")Game.SetWeatherType(WeatherType.Snow);
+								if(wett == "RAIN")Game.SetWeatherType(WeatherType.Rain);
+							}
+					break;
+					case "GAMEOV":
+						if(args.User.IsHost || args.User.IsModerator)
+							{
+								Game.SetGameOver(args.CommandArguments);
+							}
+					break;
+					case "SOUND":
+						if(args.User.IsHost || args.User.IsModerator)
+							{
+								Game.PlaySound(args.CommandArguments, Vector2.Zero);
+							}
+					break;
+					case "SCORE":
+						if(args.User.IsHost || args.User.IsModerator)
+							{
+								Game.ResetScore();
+							}
+					break;
+					case "PMS":
+						if(!Popup && !Timer && args.Message.Contains(" ") && (args.User.IsHost || args.User.IsModerator))
+							{
+								Popup = true;
+								Game.ShowPopupMessage(args.CommandArguments, Color.White);
+								Events.UpdateCallback.Start((x) =>
+									{
+										Popup = false;
+										Game.HidePopupMessage();
+									}, 5000, 1);
+							}
+					break;
+					case "TIMER":
+						if(args.Message.Contains(" ") && !Popup && !Timer && (args.User.IsHost || args.User.IsModerator))
+							{
+								string[] arr = args.CommandArguments.Split(' ');
+								if(arr.Count() >= 2)
+									{
+										bool isNumeric = int.TryParse(arr[0], out n);
+										bool isNumeric2 = int.TryParse(arr[1], out n);
+										if(isNumeric && isNumeric2 && Convert.ToInt32(arr[1]) <= 60)
+											{
+												Timer = true;
+												mm = Math.Abs(Convert.ToInt32(arr[0]));
+												ss = Math.Abs(Convert.ToInt32(arr[1]));
+												if(ss <= 9)rs = "0";else rs = "";
+												if(mm <= 9)rm = "0";else rs = "";
+												Game.ShowPopupMessage(rm + mm.ToString() +":"+ rs + ss.ToString(), Color.White);
+												aw.Trigger();
+											}
+									}
+							}
+					break;
+					case "TIMERSTOP":
+						if(!Popup && Timer && (args.User.IsHost || args.User.IsModerator))
+							{
+								Game.PlaySound("MenuCancel", Vector2.Zero);
+								aw.StopTimer();
+								Events.UpdateCallback.Start((x) =>
+									{
+										Game.HidePopupMessage();
+										Timer = false;
+										y = 0;
+										n = 0;
+									}, 500u, 1);
+							}
+					break;
+					case "VOTE":
+						if(args.Message.Contains(" ") && (args.User.IsHost || args.User.IsModerator))
+							{
+								if(!Popup && !Timer)
+									{
+										Popup = true;
+										theme = args.CommandArguments;
+										Game.PlaySound("TutorialSuccess1", Vector2.Zero);
+										Game.ShowPopupMessage("Vote for: " + theme + "\n [y/n]\n 0 : 0", Color.Green);
+										Game.ShowChatMessage(args.User.Name + " started a voting for: \"" + args.CommandArguments + "\"[y/n]", Color.Green);
+										Events.UpdateCallback.Start((x) =>
+											{
+												Popup = false;
+												Game.HidePopupMessage();
+												Game.PlaySound("TutorialSuccess2", Vector2.Zero);
+												if(y == 0 && n == 0)Game.ShowChatMessage("No one voted for: \"" + theme + "\".", Color.White);
+												else if(y >= n)Game.ShowChatMessage("Voting for: \"" + theme + "\" successful!(" + y.ToString() + "/" + n.ToString() + ")", Color.Green);
+												else if(y <= n)Game.ShowChatMessage("Voting for: \"" + theme + "\" unsuccessful!(" + y.ToString() + "/" + n.ToString() + ")", Color.Red);
+												else if(y == n)Game.ShowChatMessage("Voting for: \"" + theme + "\" divided equally!(" + y.ToString() + "/" + n.ToString() + ")",new Color(165,42,42));
+												y = 0;
+												n = 0;
+												Voter.Clear();
+											}, 10000u, 1);
+									}
+							}
+					break;
+					case "CLONE":
+						if(args.User.GetPlayer() != null && (args.User.IsHost || args.User.IsModerator))
+							{
+								IPlayer b =	 Game.CreatePlayer(args.User.GetPlayer().GetWorldPosition());
+								b.SetBotName(args.User.Name);
+								b.SetProfile(args.User.GetPlayer().GetProfile());
+								b.SetModifiers(args.User.GetPlayer().GetModifiers());
+								b.SetHealth(args.User.GetPlayer().GetHealth());
+								b.SetNametagVisible(args.User.GetPlayer().GetNametagVisible());
+								b.SetStatusBarsVisible(args.User.GetPlayer().GetStatusBarsVisible());
+								b.SetFaceDirection(args.User.GetPlayer().GetFaceDirection());
+								b.SetTeam(args.User.GetPlayer().GetTeam());
+								b.GiveWeaponItem(args.User.GetPlayer().CurrentMeleeMakeshiftWeapon.WeaponItem);
+								b.GiveWeaponItem(args.User.GetPlayer().CurrentMeleeWeapon.WeaponItem);
+								b.GiveWeaponItem(args.User.GetPlayer().CurrentPrimaryWeapon.WeaponItem);
+								b.GiveWeaponItem(args.User.GetPlayer().CurrentSecondaryWeapon.WeaponItem);
+								b.GiveWeaponItem(args.User.GetPlayer().CurrentThrownItem.WeaponItem);
+								b.GiveWeaponItem(args.User.GetPlayer().CurrentPowerupItem.WeaponItem);
+								b.SetCurrentMeleeMakeshiftDurability(args.User.GetPlayer().CurrentMeleeMakeshiftWeapon.Durability);
+								b.SetCurrentMeleeDurability(args.User.GetPlayer().CurrentMeleeWeapon.Durability);
+								b.SetCurrentPrimaryWeaponAmmo(args.User.GetPlayer().CurrentPrimaryWeapon.TotalAmmo);
+								b.SetCurrentSecondaryWeaponAmmo(args.User.GetPlayer().CurrentSecondaryWeapon.TotalAmmo);
+								b.SetCurrentThrownItemAmmo(args.User.GetPlayer().CurrentThrownItem.CurrentAmmo);
+								if(args.CommandArguments != "")b.SetBotBehavior(new BotBehavior(true, PredefinedAIType.BotA));
+								b.SetCameraSecondaryFocusMode(args.User.GetPlayer().GetCameraSecondaryFocusMode());
+							}
+					break;
+				}
+		}
+}
+
+public void Input(IPlayer p, VirtualKeyInfo[] keyEvents) 
+{
+	for(int i = 0; i < keyEvents.Length; i ++) 
+	if(keyEvents[i].Event == VirtualKeyEvent.Pressed) 
+		{
+			switch(keyEvents[i].Key) 
+				{
+					case VirtualKey.DRAW_SPECIAL:
+					if(p.KeyPressed(VirtualKey.WALKING))
+						{
+							p.SetInputEnabled(false);
+							p.AddCommand(new PlayerCommand(PlayerCommandType.DeathKneelInfinite));
+							Events.UpdateCallback.Start((x) => p.SetInputEnabled(true), 1411u, 1);
+						}
+					break;
+					case VirtualKey.DRAW_GRENADE:
+					if(p.KeyPressed(VirtualKey.WALKING))
+						{
+							p.SetInputEnabled(false);
+							p.AddCommand(new PlayerCommand(PlayerCommandType.StaggerInfinite));
+							Events.UpdateCallback.Start((x) => p.SetInputEnabled(true), 200u, 1);
+						}
+					break;
+					case VirtualKey.DRAW_MELEE:
+					if(p.KeyPressed(VirtualKey.WALKING))
+						{
+							p.SetInputEnabled(false);
+							p.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+							Events.UpdateCallback.Start((x) => p.SetInputEnabled(true), 500u, 1);
+						}
+					break;
+				}
+		}
+}
+
+public static string FirstCharToUpper(string input)
+{
+    if (String.IsNullOrEmpty(input))
+        throw new ArgumentException("ARGH!");
+    return input.First().ToString().ToUpper() + String.Join("", input.Skip(1));
+}
+
+string rm = "", rs = "";
+public void TickMe(TriggerArgs args)
+{
+	ss--;
+	if(ss == -1){mm--;ss = 59;}
+	if(ss <= 9)rs = "0";else rs = "";
+	if(mm <= 9)rm = "0";else rs = "";
+	if(mm == 0 && ss <= 10 && ss >= 1)Game.PlaySound("MenuOK", Vector2.Zero);
+	else if(mm == 0 && ss == 0)
+		{
+			Game.PlaySound("MenuCancel", Vector2.Zero);
+			aw.StopTimer();
+			Events.UpdateCallback.Start((x) =>
+				{
+					Game.HidePopupMessage();
+					Timer = false;
+					y = 0;
+					n = 0;
+				}, 500u, 1);
+		}
+	Game.ShowPopupMessage(rm + mm.ToString() +":"+ rs + ss.ToString(), Color.White);
+}

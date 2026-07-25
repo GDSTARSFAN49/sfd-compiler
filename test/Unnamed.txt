@@ -1,0 +1,13 @@
+public Events.ObjectCreatedCallback Event = null;
+
+public void OnStartup()
+{
+	Events.ObjectCreatedCallback.Start(OnObjectCreate);
+}
+
+public void OnObjectCreate(IObject[] objs)
+{
+	foreach (IObject obj in objs)
+		if (obj.Name == "StreetsweeperCrate")
+			obj.Remove();
+}

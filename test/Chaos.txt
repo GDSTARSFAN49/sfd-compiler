@@ -1,0 +1,42 @@
+Events.UserMessageCallback m_userMessageCallback = null;
+
+bool chaosC;
+
+public void OnStartup(){
+m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+    (CreateTimer(5000, 0, "ChaosV2")).Trigger();
+}
+
+public void OnUserMessage(UserMessageCallbackArgs args){
+	
+	if(args.IsCommand && args.User.IsModerator){
+		if(args.Command == "CHAOS_CONTROL")
+				chaosC = true;
+	}
+}
+
+public void ChaosV2(TriggerArgs args){
+	PlayerModifiers modify = new PlayerModifiers();
+	modify.ItemDropMode = 1;
+	foreach(IPlayer x in Game.GetPlayers()) {
+            x.SetModifiers(modify);
+            if(!x.IsDead &&chaosC == false)
+                    x.GiveWeaponItem(Game.GetRandomWeaponItem());
+				else{
+					x.GiveWeaponItem((WeaponItem)29);
+					x.GiveWeaponItem((WeaponItem)1);
+					x.GiveWeaponItem((WeaponItem)3);
+					x.GiveWeaponItem((WeaponItem)20);
+					x.SetStrengthBoostTime(6000);
+					x.SetSpeedBoostTime(6000);
+		}
+	}
+}
+
+public static IObjectTimerTrigger CreateTimer(int interval, int count, string method) {
+    IObjectTimerTrigger timer = (IObjectTimerTrigger)(Game.CreateObject("TimerTrigger"));
+    timer.SetIntervalTime(interval);
+    timer.SetRepeatCount(count);
+    timer.SetScriptMethod(method);
+    return timer;
+}

@@ -1,0 +1,55 @@
+readonly int ChatLogDelay = 5000; // Delay before players gain immunity (milliseconds). Default: 5000
+readonly bool DisableOnSuddenDeath = true; // Disables chat immunity if sudden death is active. Default: true
+public void AfterStartup() {
+  Events.UpdateCallback.Start(NoChatKillUpdate => {
+    if (DisableOnSuddenDeath && Game.SuddenDeathActive) {
+      foreach(IPlayer Chatting in Game.GetPlayers().Where(p => !p.IsDead && p.ChatActive)) {
+        SetDamageTakenModifier(Chatting, -2, -2);
+        Chatting.SetValidBotEliminateTarget(true);
+      }
+      return;
+    }
+    foreach(IPlayer Players in Game.GetPlayers().Where(p => !p.IsDead))
+    if (Players.ChatActive) {
+      string TriggerData = string.Format("ChatImmunity{0}", Players.UniqueID);
+      if (Game.GetObjects < IObjectTimerTrigger > ().Where(tt => tt.CustomID == TriggerData).Count() == 0) CreateTimer(ChatLogDelay, 1, "SetChatImmunity", TriggerData).Trigger();
+    } else {
+      SetDamageTakenModifier(Players, -2, -2);
+      Players.SetValidBotEliminateTarget(true);
+    }
+  });
+}
+public void SetChatImmunity(TriggerArgs args) {
+  IPlayer ToSet = Game.GetPlayer(int.Parse(((IObject) args.Caller).CustomID.Replace("ChatImmunity", string.Empty)));
+  if (ToSet == null || DisableOnSuddenDeath && Game.SuddenDeathActive) {
+    ((IObject) args.Caller).Remove();
+    return;
+  }
+  if (!ToSet.ChatActive) {
+    ((IObject) args.Caller).Remove();
+    return;
+  }
+  SetDamageTakenModifier(ToSet, 0, 1);
+  ToSet.SetValidBotEliminateTarget(false);
+  ((IObject) args.Caller).Remove();
+}
+IObjectTimerTrigger CreateTimer(int interval, int count, string method, string id = "", IObjectTrigger[] totrigger = null) {
+  IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger) Game.CreateObject("TimerTrigger");
+  timerTrigger.SetIntervalTime(interval);
+  timerTrigger.SetRepeatCount(count);
+  timerTrigger.SetScriptMethod(method);
+  timerTrigger.CustomId = id;
+  if (totrigger != null) timerTrigger.SetTriggerObjects(totrigger);
+  return timerTrigger;
+}
+void SetDamageTakenModifier(IPlayer p, int i, int o) {
+  PlayerModifiers modifier = p.GetModifiers();
+  modifier.ExplosionDamageTakenModifier = i;
+  modifier.FireDamageTakenModifier = i;
+  modifier.MeleeDamageTakenModifier = i;
+  modifier.ImpactDamageTakenModifier = i;
+  modifier.ProjectileDamageTakenModifier = i;
+  modifier.MeleeStunImmunity = o;
+  modifier.ProjectileCritChanceTakenModifier = i;
+  p.SetModifiers(modifier);
+}

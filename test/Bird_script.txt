@@ -1,0 +1,40 @@
+private void CreateBird(string id){
+IObject bird = Game.CreateObject("Dove00", Vector2.Zero);
+bird.CustomID = id;
+}
+
+public void OnStartup(){
+IPlayer[] ply = Game.GetPlayers();
+CreateBird("bird");
+IObject follower = Game.GetSingleObjectByCustomID("bird");
+IObjectTimerTrigger timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+timer.SetIntervalTime(10);
+timer.SetRepeatCount(0);
+timer.SetScriptMethod("BirdFollow");
+timer.Trigger();
+IObjectDisableTrigger disabler = (IObjectDisableTrigger)Game.CreateObject("DisableTrigger");
+disabler.AddTriggerToDisable(timer);
+IObjectOnDestroyedTrigger ondestroy = (IObjectOnDestroyedTrigger)Game.CreateObject("OnDestroyedTrigger");
+ondestroy.AddTriggerDestroyObject(follower);
+ondestroy.AddTriggerObject(disabler);
+IObjectOnPlayerDeathTrigger afterdeath = (IObjectOnPlayerDeathTrigger)Game.CreateObject("OnPlayerDeathTrigger");
+afterdeath.SetPlayerSource(ply[0]);
+afterdeath.AddTriggerObject(disabler);
+IObjectAlterCollisionTile altercollisiontile = (IObjectAlterCollisionTile)Game.CreateObject("AlterCollisionTile");
+altercollisiontile.AddTargetObject(follower);
+altercollisiontile.SetDisabledCategoryBits(0xFFFF);
+altercollisiontile.SetDisabledMaskBits(0xFFFF);
+altercollisiontile.SetDisabledAboveBits(0xFFFF);
+}
+
+public void BirdFollow(TriggerArgs arg){
+IPlayer[] ply = Game.GetPlayers();
+IObject follower = Game.GetSingleObjectByCustomID("bird");
+follower.SetBodyType(BodyType.Static);
+if (ply[0].FacingDirection == -1){
+follower.SetWorldPosition(ply[0].GetWorldPosition() + new Vector2(14,16));
+}
+if (ply[0].FacingDirection == 1){
+follower.SetWorldPosition(ply[0].GetWorldPosition() + new Vector2(-14,16));
+}
+}

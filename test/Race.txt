@@ -1,0 +1,602 @@
+public static int Race_Laps = 1;
+public static int Race_Mode = 0;    //0 = Race, 1 = Time Trials
+public static int Race_TimeLeft = 3000;
+public static int Race_PB = 1;
+
+public static List<Node> Checkpoints = new List<Node>();
+public static List<Racer> Racers = new List<Racer>();
+public static List<Racer> Podium = new List<Racer>();
+
+public static Color colMsg = new Color(64, 245, 37);
+public static Color colCmd = new Color(221, 37, 245);
+public static Color colSho = new Color(245, 191, 66);
+public static Color colWar = new Color(240, 0, 0);
+
+public static string fileloc = "";
+
+public Events.UserMessageCallback m_userMessageCallback = null;
+
+public class Node{
+	public IObject Position = null;
+	public int FlagID = 0;
+	public IObjectElevatorPathJoint Link = null;	
+
+	public Node(Vector2 pos, int i){
+		Position = Game.CreateObject("InvisibleBlockNoCollision", pos);;
+		FlagID = i;
+		CreateText("" + (FlagID + 1), Position.GetWorldPosition());
+		Link = (IObjectElevatorPathJoint)Game.CreateObject("ElevatorPathJoint", Position.GetWorldPosition());
+	}
+
+	public bool CollidingWith(IObject col){
+		return Position.GetAABB().Intersects(col.GetAABB());
+	}
+
+	public void Connect(){
+	
+		if(FlagID != Checkpoints.Count - 1){
+			Link.SetNextPathJoint(Checkpoints[FlagID + 1].Link);
+		}else{
+			Link.SetNextPathJoint(Checkpoints[0].Link);
+		}
+		Link.SetLineVisual(LineVisual.DJRail);
+	}
+};
+
+public class Racer{
+	IUser User = null;
+	IPlayer Player = null;
+
+	DateTime Timer;
+	bool Racing = false;
+	int Lap = 0;
+
+	int RespawnTime = -1;
+	int numRespawn = 0;
+	int bufferTime = -1;
+
+	bool[] Status = new bool[Checkpoints.Count];
+	
+
+	public Racer(IUser usr){
+		User = usr;
+		
+		IPlayer temp = null;
+		if(usr.GetPlayer() == null){
+			temp = Game.CreatePlayer(Vector2.Zero);
+		}else{
+			temp = User.GetPlayer();
+		}
+		
+		Player = temp;
+
+		if(Race_Mode == 0){
+			Init();
+		}else{
+			ShowConfig(User);
+			ShowMessage("Type /rhelp for Time Trial", User, colMsg);
+		}	
+		Stop();
+	}
+	
+	public void Init(){
+		string mode = (Race_Mode == 0) ? "Race" : "Trial";
+		ShowMessage("Beginning " + mode + " In 5 Seconds", User, colMsg);
+		RespawnTime = 500;
+	}
+	
+	public void Spawn(){
+		Lap = 0;
+		Timer = DateTime.Now;
+		Racing = true;
+
+		for(int i = 0;i < Status.Length;i ++){
+			Status[i] = false;
+		}
+
+		Player.Remove();
+		Player = Game.CreatePlayer(Checkpoints[0].Position.GetWorldPosition());
+		Player.SetProfile(User.GetProfile());
+		User.SetPlayer(Player);
+		if(Race_Mode == 1){
+			Player.SetTeam(PlayerTeam.Team3);
+		}
+		
+		ShowMessage("First Checkpoint: 2", User, colMsg);
+	}
+
+	public void Respawn(){
+		Racing = true;
+		
+		if(numRespawn == 0){
+			Lap = 0;
+			Timer = DateTime.Now;
+		}
+		numRespawn ++;
+		
+		int lastCheck = 0;
+		for(int i = 0;i < Status.Length;i ++){
+			if(Status[i]){
+				lastCheck = i;
+			}
+		}
+	
+		Player.Remove();
+		Player = Game.CreatePlayer(Checkpoints[lastCheck].Position.GetWorldPosition());
+		Player.SetProfile(User.GetProfile());
+		Player.SetTeam(PlayerTeam.Team3);
+		User.SetPlayer(Player);	
+		
+		if(Player.IsBot){
+			Player.SetBotBehavior(new BotBehavior(true, User.BotPredefinedAIType));
+			BotBehaviorSet bb = Player.GetBotBehaviorSet();
+			bb.GuardRange = 1;
+			Player.SetBotBehaviorSet(bb);
+		}
+		
+		bufferTime = 300;
+	}
+
+	public void End(){
+		Racing = false;
+		Player.Remove();
+		
+		switch(Race_Mode){
+			case 0:
+				Podium.Add(this);	
+				ShowMessage(User.Name + " completed the race in [" + SpanFormat(DateTime.Now - Timer) + "]", null, colMsg);
+				Game.PlaySound("ChurchBell1", Vector2.Zero);
+			break;
+			case 1:
+				ShowMessage(User.Name + " completed the trial in [" + SpanFormat(DateTime.Now - Timer) + "]", null, colMsg);
+				SubmitTime(User, (DateTime.Now - Timer));
+			break;
+		}
+	}
+	
+	public void Stop(){
+		Racing = false;
+		Player.Remove();
+		if(Race_Mode == 0 && RespawnTime == -1){
+			ShowMessage("Respawning Into Race In 3 Seconds", User, colMsg);
+			RespawnTime = 300;
+		}
+	}
+
+	public void Step(){
+		if(RespawnTime > 0){
+			RespawnTime --;
+
+			if(RespawnTime % 100 == 0){
+				ShowMessage("" + (RespawnTime / 100), User, colMsg);
+			}
+		}
+		if(RespawnTime == 0){
+			RespawnTime = -1;
+			if(Race_Mode == 1){
+				Spawn();
+			}else{
+				Respawn();
+			}
+		}
+
+		if(bufferTime > 0){
+			bufferTime --;
+		}
+		if(bufferTime == 0){
+			bufferTime = -1;
+			Player.SetTeam(PlayerTeam.Independent);
+		}
+
+		if(Racing){
+		
+			if(Player.IsBot){
+				int lastCheck = 0;
+				for(int i = 1;i < Status.Length;i ++){
+					if(!Status[i]){
+						lastCheck = i;
+						break;
+					}
+				}
+				if(lastCheck >= Checkpoints.Count){
+					lastCheck = 0;
+				}
+				
+				Player.SetGuardTarget(Checkpoints[lastCheck].Position);
+			}
+		
+			if(Player == null || Player.IsDead || Player.IsRemoved){
+				Stop();
+			}
+
+			if(FindNodes()){
+			    FinishLap();
+			    CheckScore();
+			}
+		}
+	}
+	
+	public void FinishLap(){
+		for(int i = 0;i < Status.Length;i ++){
+			Status[i] = false;
+		}
+		Lap ++;
+		if(Lap < Race_Laps){
+			ShowMessage("Finished Lap " + Lap, User, colMsg);
+		}
+	}
+	
+	public bool FindNodes(){
+	bool good = false;
+		
+		foreach(Node rc in Checkpoints){
+			
+			if(rc.CollidingWith(Player) && rc.FlagID != 0 && !Status[rc.FlagID] && (Status[rc.FlagID - 1] || rc.FlagID == 1)){
+				Status[rc.FlagID] = true;
+				ShowTime();
+
+				if(rc.FlagID != Status.Length - 1){
+					ShowMessage("Next Checkpoint: " + (rc.FlagID + 2), User, colMsg);
+				}else{
+					ShowMessage("Next Checkpoint: 1", User, colMsg);
+				}
+			}
+		}
+		
+		bool finalLap = true;
+		for(int i = 1;i < Status.Length;i ++){
+			if(!Status[i]){
+				finalLap = false;
+			}
+		}
+		if(finalLap){
+			good = Checkpoints[0].CollidingWith(Player);
+		}
+		return good;
+	}
+	
+	public void ShowTime(){
+		ShowMessage("Split [" + SpanFormat(DateTime.Now - Timer) + "]", User, colMsg);
+	}
+
+	public void CheckScore(){
+	
+		if(Lap >= Race_Laps){
+			End();
+		}
+	}
+
+	public IUser GetUser(){
+		return User;
+	}
+}
+
+public static void CreateText(string Text, Vector2 Position){
+	IObjectText text = (IObjectText)Game.CreateObject("Text", Position + new Vector2(0,-1));
+	text.SetText(Text);
+	text.SetTextAlignment(TextAlignment.Middle);
+	text.SetTextColor(Color.Black);
+	text.SetTextScale(2);
+
+	text = (IObjectText)Game.CreateObject("Text", Position + new Vector2(0,1));
+	text.SetText(Text);
+	text.SetTextAlignment(TextAlignment.Middle);
+	text.SetTextColor(Color.Black);
+	text.SetTextScale(2);
+
+	text = (IObjectText)Game.CreateObject("Text", Position + new Vector2(1,0));
+	text.SetText(Text);
+	text.SetTextAlignment(TextAlignment.Middle);
+	text.SetTextColor(Color.Black);
+	text.SetTextScale(2);
+
+	text = (IObjectText)Game.CreateObject("Text", Position + new Vector2(-1,0));
+	text.SetText(Text);
+	text.SetTextAlignment(TextAlignment.Middle);
+	text.SetTextColor(Color.Black);
+	text.SetTextScale(2);
+
+	text = (IObjectText)Game.CreateObject("Text", Position);
+	text.SetText(Text);
+	text.SetTextAlignment(TextAlignment.Middle);
+	text.SetTextColor(Color.White);
+	text.SetTextScale(2);
+}
+
+public static void InitRace(){
+	int Laps = 0;
+	if(Game.LocalStorage.TryGetItemInt("LAPS", out Laps)){
+		Race_Laps = Laps;
+	}
+	
+	string Mode = "";
+	if(Game.LocalStorage.TryGetItemString("MODE", out Mode)){
+		if(Mode == "RACE"){
+			Race_Mode = 0;
+		}
+		if(Mode == "TRIAL"){
+			Race_Mode = 1;
+		}
+	}
+	
+	int PB = 1;
+	if(Game.LocalStorage.TryGetItemInt("PBS", out PB)){
+		Race_PB = PB;
+	}
+
+	Game.AutoScoreConditionEnabled = false;
+	Game.AutoVictoryConditionEnabled = false;
+	if(Race_Mode == 1){
+		Game.AutoSpawnSupplyCratesEnabled = false;
+		foreach(IObject obj in Game.GetObjectsByName(new string[] {"SpawnWeapon","SpawnWeaponArea","SpawnWeaponAreaCeiling","SpawnItemTrigger"})){
+			obj.Remove();
+		}
+	}
+
+	IObject[] Spawns = Game.GetObjectsByName("SpawnPlayer");
+	
+	for(int i = 0; i < Spawns.Length; i ++){
+		
+		if(i == 0){
+		    Checkpoints.Add(new Node(Spawns[0].GetWorldPosition(), i));
+		}else{
+			IObject Next = null;
+			float distance = -1;
+			
+			foreach(IObject obj in Spawns){
+				
+				if(NotCheckpoint(obj)){
+				    float t_dist = DistanceBetween(Checkpoints[i - 1].Position, obj);
+				
+				    if(t_dist < distance || distance == -1){
+					    Next = obj;
+					    distance = t_dist;
+				    }
+				}
+			}
+			
+			if(Next != null){
+				Checkpoints.Add(new Node(Next.GetWorldPosition(), i));
+			}
+		}
+	}
+
+	foreach(Node o in Checkpoints){
+		o.Connect();
+	}
+
+	IObjectTimerTrigger step = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	step.SetRepeatCount(0);
+	step.SetIntervalTime(0);
+	step.SetScriptMethod("Step");
+	step.Trigger();
+}
+
+public void Step(TriggerArgs args){
+
+	IUser[] Users = Game.GetActiveUsers();
+	for(int i = 0;i < Users.Length;i ++){
+		if(GetRacer(Users[i]) == null){
+			Racers.Add(new Racer(Users[i]));
+		}
+	}
+	for(int i = 0;i < Racers.Count;i ++){
+		if(Racers[i].GetUser() == null || Racers[i].GetUser().IsRemoved){
+			Racers.RemoveAt(i);
+		}
+	}
+
+	foreach(Racer ply in Racers){
+		ply.Step();
+	}
+	
+	if(Race_Mode == 0 && Podium.Count > 0 && Race_TimeLeft != 0){
+		Race_TimeLeft --;
+		int pos = Podium.Count;
+		
+		string bd = "";
+		for(int i = 0;i < pos;i ++){
+			bd += (i + 1) + ". " + Podium[i].GetUser().Name + "\n";
+		}
+		
+		if(pos >= Racers.Count || Race_TimeLeft == 0){
+			Game.SetGameOver(Podium[0].GetUser().Name + " Won!");
+			Podium[0].GetUser().IncreaseScore();
+		}else{
+			bd += "\n TimeLeft: " + ((Race_TimeLeft + 100) / 100);
+			bd += "\n Continue Racing For A Spot On The Leaderboard";
+		}
+		
+		Game.ShowPopupMessage(bd);
+	}
+}
+
+public static bool NotCheckpoint(IObject obj){
+	bool good = true;
+
+	foreach(Node n in Checkpoints){
+		if(n.Position.GetWorldPosition() == obj.GetWorldPosition()){
+			good = false;
+			break;
+		}
+	}
+	return good;
+}
+
+public static float DistanceBetween(IObject A, IObject B){
+	Vector2 dA = A.GetWorldPosition();
+	Vector2 dB = B.GetWorldPosition();
+	
+	return (float)Math.Abs(Math.Pow(dA.X - dB.X, 2) + Math.Pow(dA.Y - dB.Y, 2));
+}
+
+public static void ShowMessage(string msg, IUser user, Color col){
+	if(user != null){
+		if(!user.IsBot){
+			Game.ShowChatMessage(msg, col, user.UserIdentifier);
+		}
+	}else{
+		Game.ShowChatMessage(msg, col);
+	}
+}
+
+public static Racer GetRacer(IUser user){
+	Racer ret = null;
+
+	foreach(Racer rc in Racers){
+		if(rc.GetUser() == user){
+			ret = rc;
+		}
+	}
+	return ret;
+}
+
+public static string SpanFormat(TimeSpan Span){
+	return Span.ToString(@"mm\:ss\.ff");
+}
+
+public static void SubmitTime(IUser User, TimeSpan Time){
+	float myTime = (float)Time.TotalSeconds;
+	float myBestTime = 0;
+	float bestTime = 0;
+
+	//Record Holder
+	if(Game.LocalStorage.TryGetItemFloat(Game.MapName + "," + Race_Laps + ",TIME", out bestTime)){
+		if(bestTime > myTime){
+			Game.LocalStorage.SetItem(fileloc + ",TIME", myTime);
+			Game.LocalStorage.SetItem(fileloc + ",USER", User.Name);
+			ShowMessage(User.Name + " Has Set The Record Of [" + SpanFormat(Time) + "]", null, colMsg);
+			Game.PlaySound("CrowdCheer", Vector2.Zero);
+		}
+	}else{
+		Game.LocalStorage.SetItem(fileloc + ",TIME", myTime);
+		Game.LocalStorage.SetItem(fileloc + ",USER", User.Name);
+		ShowMessage(User.Name + " Has Set The Record Of [" + SpanFormat(Time) + "]", null, colMsg);
+	}
+	
+	//Personal Best Times
+	if(Race_PB == 1){
+		if(Game.LocalStorage.TryGetItemFloat(fileloc + ",PB," + User.Name, out myBestTime)){
+			if(myBestTime > myTime){
+				Game.LocalStorage.SetItem(fileloc + ",PB," + User.Name, myTime);
+				ShowMessage("New PB", User, colSho);
+			}
+		}else{
+			Game.LocalStorage.SetItem(fileloc + ",PB," + User.Name, myTime);
+			ShowMessage("New PB", User, colSho);
+		}
+	}
+}
+
+public static void ShowConfig(IUser User){
+	//Easy Map Info
+	ShowMessage("Map Config:", User, colSho);
+	ShowMessage("Map: " + Game.MapName, User, colSho);
+	ShowMessage("Laps: " + Race_Laps, User, colSho);
+	
+	//Show Record Holder
+	string bestName = "";
+	float bestTime = 0;
+	if(Game.LocalStorage.TryGetItemString(fileloc + ",USER", out bestName)){
+		Game.LocalStorage.TryGetItemFloat(fileloc + ",TIME", out bestTime);
+		TimeSpan bestSpan = TimeSpan.FromSeconds(bestTime);
+
+		ShowMessage("Best Time: " + SpanFormat(bestSpan), User, colSho);
+		ShowMessage("Record Holder: " + bestName , User, colSho);
+	}else{
+		ShowMessage("Best Time: NONE" , User, colSho);
+		ShowMessage("Record Holder: NONE" , User, colSho);
+	}
+	
+	//Show PB
+	if(Race_PB == 1){
+		float myBestTime = 0;
+		if(Game.LocalStorage.TryGetItemFloat(fileloc + ",PB," + User.Name, out myBestTime)){
+			TimeSpan myBestSpan = TimeSpan.FromSeconds(myBestTime);
+			ShowMessage("PB: " + SpanFormat(myBestSpan), User, colSho);
+		}else{
+			ShowMessage("PB: NONE" , User, colSho);
+		}
+	}
+}
+
+public void OnStartup(){
+	fileloc = Game.MapName + "," + Race_Laps;
+	InitRace();
+	m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs args){
+	IUser User = args.User;
+	string stargs = args.CommandArguments;
+
+	if(args.IsCommand){
+
+		if(args.Command == "RHELP"){
+			if(User.IsModerator){
+				ShowMessage("'/MODE [x]' - Race, Trial", User, colCmd);
+				ShowMessage("'/LAPS [x]' - Set Laps", User, colCmd);
+				ShowMessage("'/PB [x]' - 0, 1 Toggle PBs", User, colCmd);
+			}
+			if(Race_Mode == 1){
+				ShowMessage("'/START' - Initiate Time Trial", User, colCmd);
+				ShowMessage("'/STOP' - End Time Trial", User, colCmd);
+				ShowMessage("'/RMAP' - Show Map's Trial Info", User, colCmd);
+			}
+		}
+
+		if(User.IsModerator){
+			switch(args.Command){
+				case "MODE":
+					if(stargs.ToUpper() == "RACE"){
+						Game.LocalStorage.SetItem("MODE", "RACE");
+						ShowMessage("Changed To Versus Race", User, colSho);
+						ShowMessage("Restart Map To Take Effect", User, colWar);
+					}
+					if(stargs.ToUpper() == "TRIAL"){
+						Game.LocalStorage.SetItem("MODE", "TRIAL");
+						ShowMessage("Changed To Time Trials", User, colSho);
+						ShowMessage("Restart Map To Take Effect", User, colWar);
+					}
+				break;
+				case "LAPS":
+					int laps = 0;
+					if(Int32.TryParse(stargs, out laps)){
+						if(laps > 0){
+							Game.LocalStorage.SetItem("LAPS", laps);
+							ShowMessage("Laps Set To " + laps, User, colSho);
+							ShowMessage("Restart Map To Take Effect", User, colWar);
+						}
+					}
+				break;
+				case "PB":
+					if(stargs == "0"){
+						Game.LocalStorage.SetItem("PB", 0);
+						ShowMessage("PBs Disabled", User, colSho);
+						ShowMessage("Restart Map To Take Effect", User, colWar);
+					}
+					if(stargs == "1"){
+						Game.LocalStorage.SetItem("PB", 1);
+						ShowMessage("PBs Enabled", User, colSho);
+						ShowMessage("Restart Map To Take Effect", User, colWar);
+					}
+				break;
+			}
+		}
+
+		if(Race_Mode == 1){
+		
+			switch(args.Command){
+				case "START":
+					GetRacer(User).Init();
+				break;
+				case "STOP":
+					GetRacer(User).Stop();
+				break;
+				case "RMAP":
+					ShowConfig(User);
+				break;
+			}	
+		}
+	}
+}

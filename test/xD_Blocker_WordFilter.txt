@@ -1,0 +1,531 @@
+int x4u = 0;
+public int WARNINGS = 2;					
+public bool ANNOUNCE_MESSAGES = false;				
+public Color ChatMessageColor = new Color (255, 204, 153);	
+
+public Punishment Final = Punishment.KICK;   		 	
+public bool AddPunishmentDelay = true;				
+
+
+
+
+string[] words =														
+{
+   /*length#1*/ "xd", " "+"xd", "xd"+"", "x"+" "+"d", "x and d", "exd", "xde", "eksdi", "iksdi", "x1d", "x2d", "x3d", "x4d", "x5d", "x6d", "x7d", "x8d", "x9d", "x0d", "xd?",
+   /*length#2*/ "x&d", "dx", "xd!", "xds", "!xd", "?xd?", "xdd", "xddd", "xdddd", "xddddd", "xdddddd", "xddddddd", "xxd", "xxxd", "xxxxd", "xxxxxd", "?xd", "?xd?", "@xd", "x"+"d",
+   /*length#3*/ "xdz", "xdf", "xdx", "x and d", "x the d", "x+d", "x=d", "x*d", "x-d", "x_d", "x"+1+"d", "*xd", "x"+"i"+"d", "@xd", "xd@", ".xd", ",xd", ";xd", "'xd", "`xd", "~xd",
+   /*length#4*/ "xd.", "xd,", "xd;", "xd'", "xd:", ":xd", "xd%", "%xd", "^xd", "xd^", "xd(", "xd)", "(xd)", "(xd", ")xd", "}xd", "xd{", "x$d", "$xd", "xd$", "!xd", "xd!", "x"+":"+"d",
+   /*length#5*/ "axd", "bxd", "cxd", "dxd", "exd", "fxd", "gxd","hxd", "ixd", "jxd", "kxd", "xdk", "lxd", "mxd", "nxd", "oxd", "pxd", "pxd", "qxd", "rxd", "sxd", "txd", "uxd", "vxd",
+   /*length#6*/ "wxd", "yxd", "zxd", "XD"+""+"XD", "XD"+""+"DX", "DX"+""+"XD", "DX"+""+"DX", "#xd", "@xd", "x#d", "x`d", "x.d", "x;d", "x'd", "xx dd", "xxdd", "xxx d", "x ddd", "x dddd",
+   /*length#7*/ "xxx ddd", "xd"+1, "xd"+2, "xd"+3, "xd"+4, "xd"+5, "xd"+6, "xd"+7, "xd"+8, "xd"+9, "xd"+0, "0xd", "1xd", "2xd", "3xd", "4xd", "5xd", "6xd", "7xd", "8xd", "9xd", "x,d", "x;d",
+   /*length#8*/ "x.d", "x/d", "x|d", "\xd", "xd/", "xd"+"\\", "x\\"+"d", "x and d", "x&d", "xandd", "x and the d", "xandthed", "x!d", ";xd", "|xd", "x|d", "xd|", "|x|d|", "|x|d", "x|d|", "x~d",
+   /*length#9*/ "xd~", "*xd*", "''xd''", "'xd'", "'xd", "xd'", "[xd]", "[xd", "xd]", "x]d", "x[d", "]xd", "xd[", "]xd[", "]x[d]", "[x][d]", ">xd", "<xd", "x>d", "x<d", "xd<", ">x<d>", "<x><d>",
+   /*length#10*/"./xd", "+xd", "x+d", "xd+", "+x+d+", "=xd", "x=d", "xd=", "=x=d=", "-xd", "x-d", "xd-", "x^d", ",xd", "xd,", "x!d", "xd!", "?xd", "x?d", "xd?", ">x^d", "}x^d", "]x^d", ")xd", 
+   /*length#11*/"(xd", "(xd)", "x(d)", "(x)d", "(x)(d)", "*xd", "xd*", "%xd", "x%d", "xd%", "xd#", ":xd:", ";xd;", ",xd,", ".xd.", ">xd", "<xd", ">xd<", "<xd<", ">xd>", ">x<d>", "<x><d>", "$xd$", 
+   /*length#12*/"x_d", "_x_d_", "_x_d", "x_d_", "x_d", "|xd", "xd|", "xd:", ":xd", "xd$", ""+"x"+"d"+"", "x"+""+""+"d", ""+"x"+"d"+""+"", "lolxd", "noxd", "yesxd", "yeahxd", "yeaxd", "yexd", "npxd",
+   /*length#13*/"_xd", "xd_", "nopxd", "nopexd", "okxd", "okayxd", "okeyxd", "uxd", "youxd", "sixd", "gxd", "ggxd", "ggwpxd", "ggezxd", "ezxd", "ixd", "fuckxd", "fackxd", "fakxd", "fxd", "fickxd", "feckxd", 
+   /*length#14*/"okixd", "okyxd", "oxd", "sorryxd", "sryxd", "sxd", "xd's", "xds", "xdz", "sukaxd", "loxd", "loxxd", "pidorxd", "blyatxd", "blyat'xd", "blyxd", "blyaxd", "blxd", "sukxd", "noobxd", "nobxd", "nubxd",
+   /*length#15*/"hackxd", "huxd", "proxd", "putoxd", "putaxd", "mrdaxd", "mierdaxd", "pidorxd", "pidrxd", "fuccxd", "fucxd", "kekxd", "kickxd", "banxd", "lelxd", "lilxd", "lulxd", "lylxd", "l0lxd", ""+"xd"+"", 
+   /*length#16*/"" + "" + "xd", "daxd", "netxd", "yoxd", "yaxd", "tixd", "sosixd", "pidorazxd", "pidorxd", "bbxd", "gtgxd", "bbsxd", "ggsxd", "brbxd", "cyaxd", "kuxd", "kyxd", "qqxd", "kukuxd", "huixd", "xuixd", 
+   /*length#17*/"huyxd", "xuyxd", "xujxd", "hujxd", "xuixd", "hyuxd", "huixd", "xyixd", "herxd", ".i.xd", "kurwaxd", "xdpro", "xdnoob", "xdfuck", "xdyes", "xdno", "akxd", "suxd", "huxd", "daunxd", "idiotxd", 
+   /*length#18*/"dickxd", "ckxd", "ikxd", "smhxd", "disxd", "btwxd", "nvmxd", "xdlol", "goodxd", "gudxd", "badxd", "nicexd", "xdnice", "xdgood", "xdgud", "quexd", "nexd", ":dxd", "xda", "xdb", "xdc", "xde",
+   /*length#19*/"xdf", "xdh", "xdg", "xdi", "xdj", "xdl", "xdo", "xdp", "xdz", "xdv", "xdb", "xds", "xdk", "xdq", "xdm", "xdn", "xdu", "xdt", "xdr", "xdw", "xdy", "haxd", "hahxd", "hahahxd", "hhahhxd", "banxd",
+   /*length#20*/"xaxaxaxd", "axaxxd", "ahahxd", "ha-haxd", "ahaxd", "xaxd", "esxd", "dolbayobxd", "dalbayobxd", "mrxd", "ahhahaxd", "asdxd", "abcxd", "123xd", "\"+xd"+"", "rqxd", "ddxd", ""+"xd\\", "x"+" ddd", 
+   /*length#21*/"ohxd", "uhxd", "oofxd", "ufxd", "heyxd", "hixd", "supxd", "helloxd", "elloxd", "holaxd", "privxd", "privetxd", "awxd", "ewxd", "afxd", "tfxd", "ahxd", "n00bxd", "ptoxd", "x  d", "x   d", "x    d" 
+};
+
+
+public void OnStartup() 
+{
+    Events.UserMessageCallback.Start(OnUserMessage);
+
+    foreach (var p in Game.GetPlayers())
+    {
+        Player.Players.Add(new Player(p));
+    }
+
+    var data = Game.LocalStorage.GetItem("data") as string;
+
+    if (data == null || data == "") 
+    return;
+ 
+    var playerdatas = data.Split(',');
+
+    foreach (var pd in playerdatas)
+    {
+        var x = pd.Split(';');
+        var player = Player.Players.Where(p => p.User.ConnectionIP == x[0]).FirstOrDefault();
+
+        if (player == null)
+        continue;
+  
+        var e_player = new Player(player.Ply, Convert.ToInt32(x[1]));
+        Player.Players.Remove(player);
+        Player.Players.Add(e_player);
+    }
+
+    new Timers("Global").AddTimer(1000, 0, (args) =>  
+    { 
+        string log;
+
+        if (Game.LocalStorage.TryGetItemString("plist", out log))
+        {
+            var ulog = log.Split(',').ToList();
+
+            foreach (var x in log.Split(','))
+            {
+                if (x == null || x == "")
+                    continue;
+
+                var xy = x.Split(';');
+                var ply = Game.GetActiveUsers().FirstOrDefault(ux => ux.ConnectionIP.Equals(xy[0]));
+                if (ply != null) 
+                {
+                    Random rnd = new Random();
+                    switch(rnd.Next(0,4))
+                    {
+                       case 0:
+                       Game.PlaySound("TutorialSuccess1", new Vector2(0,0), 1f);
+                       Game.PlaySound("ElevatorDing", new Vector2(0,0), 0.6f);
+                       Game.PlaySound("TutorialSuccess2", new Vector2(0,0), 1f);
+                       Game.ShowChatMessage(Capitalize(xy[1].ToLowerInvariant()) + "ing " + ply.Name + " for evading the rule before", new Color(5,95,15));
+                       Game.RunCommand("/" + xy[1] + " " + ply.Name);
+                       ulog.Remove(x);
+                       break;
+                       case 1:
+                       Game.PlaySound("TutorialSuccess1", new Vector2(0,0), 1f);
+                       Game.PlaySound("ElevatorDing", new Vector2(0,0), 0.6f);
+                       Game.PlaySound("TutorialSuccess2", new Vector2(0,0), 1f);
+                       Game.ShowChatMessage(Capitalize(xy[1].ToLowerInvariant()) + "ing " + ply.Name + " for double rule-breaking", new Color(5,95,15));
+                       Game.RunCommand("/" + xy[1] + " " + ply.Name);
+                       ulog.Remove(x);
+                       break;
+                       case 2:
+                       Game.PlaySound("TutorialSuccess1", new Vector2(0,0), 1f);
+                       Game.PlaySound("ElevatorDing", new Vector2(0,0), 0.6f);
+                       Game.PlaySound("TutorialSuccess2", new Vector2(0,0), 1f);
+                       Game.ShowChatMessage(Capitalize(xy[1].ToLowerInvariant()) + "ing " + ply.Name + " for trying to avoiding punishment", new Color(5,95,15));
+                       Game.RunCommand("/" + xy[1] + " " + ply.Name);
+                       ulog.Remove(x);
+                       break;
+                       case 3:
+                       Game.PlaySound("TutorialSuccess1", new Vector2(0,0), 1f);
+                       Game.PlaySound("ElevatorDing", new Vector2(0,0), 0.6f);
+                       Game.PlaySound("TutorialSuccess2", new Vector2(0,0), 1f);
+                       Game.ShowChatMessage(Capitalize(xy[1].ToLowerInvariant()) + "ing " + ply.Name + " for avoiding punishment", new Color(5,95,15));
+                       Game.RunCommand("/" + xy[1] + " " + ply.Name);
+                       ulog.Remove(x);
+                       break;
+                   }
+                }
+            }
+ 
+            Game.LocalStorage.SetItem("plist", string.Join(",", ulog.ToArray()));
+        }
+    });
+}
+
+public void OnShutdown()
+{
+    var data = "";
+
+    for (var i = 0; i < Player.Players.Count(); i++)
+    {
+         if (Player.Players[i].IsHost)
+             continue;
+
+         data += Player.Players[i].IP + ";" + Player.Players[i].Warnings;
+
+         if (i != Player.Players.Count() - 1) 
+             data += ",";
+    }
+ 
+    Game.LocalStorage.SetItem("data", data);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs ua) 
+{ 
+   if (ua.User.IsHost)
+   {  
+      if(ua.Message.ToUpper().Contains("XD"))
+       { 
+          Game.LocalStorage.SetItem("XD",x4u + 1);
+          Game.RunCommand("/msg [" + (x4u + 1) + "]");
+          Game.LocalStorage.SetItem("XD",1);
+          x4u++;
+       }
+       return;
+    }
+
+    var msg = ua.Message.Split(']');
+    var actual_message = msg[msg.Count() - 1];
+
+    var player = Player.GetPlayer(ua.User);
+
+    if (player == null)
+    {
+        player = new Player(ua.User);
+ 
+        if (Player.Players != null)
+            Player.Players.Add(player);
+    }
+
+    foreach (var s in words.Where(w => w != "" || w != null))
+    {
+        if (actual_message.ToLowerInvariant().Split(' ').Contains(s.ToLowerInvariant()) || 
+            Truncate2(actual_message).ToLowerInvariant().Split(' ').Contains(s.ToLowerInvariant()) ||
+            Truncate2(actual_message).Split(' ').Select(x => x.ToLowerInvariant()).ToList().Any(x => Sanitize(x).Contains(s)) ||
+            (s.Contains("  ") && actual_message.ToLowerInvariant().Contains(s.ToLowerInvariant())) ||
+            (s.Contains("  ") && Sanitize(Truncate2(actual_message).ToLowerInvariant()).Any(x => x.Contains(s.ToLowerInvariant()))) ||
+            (s.Length > 3 && actual_message.ToLowerInvariant().Contains(string.Join("", s.ToLowerInvariant().Split(' ')))) ||
+            (s.Length > 3 && Sanitize(s).Any(x => Truncate2(actual_message).ToLowerInvariant().Split(' ').Any(y => y.Length > 4 && (y.Contains(s) || y.Contains(x))))))
+        {
+            var warnings = player.Warnings;
+            var message = "";
+
+            if (warnings < WARNINGS - 1)
+            {
+      
+                message = string.Format("", s, warnings + 1, (this.Final == Punishment.BAN ? "ban" : "kick"));
+                warnings ++;
+                Game.PlaySound("MenuCancel", new Vector2(0,0), 1f);
+                Game.PlaySound("MenuOk", new Vector2(0,0), 1f);
+                Game.PlaySound("MenuCancel", new Vector2(0,0), 1f);
+                Random rnd = new Random();
+                switch(rnd.Next(0,8))
+                {
+                   case 0:
+                   Game.RunCommand("/msg It was the first warning for you! Don't write ''xd'' again! ["+warnings+"]");
+                   break;
+                   case 1:
+                   Game.RunCommand("/msg ''xd's'' are not recommended on this server ["+warnings+"]");
+                   break;
+                   case 2:
+                   Game.RunCommand("/msg Writing ''xd's'' is not recommended on this server ["+warnings+"]");
+                   break;
+                   case 3:
+                   Game.RunCommand("/msg Don't write this again! ["+warnings+"]");
+                   break;
+                   case 4:
+                   Game.RunCommand("/msg Don't write ''xd'' again! ["+warnings+"]");
+                   break;
+                   case 5:
+                   Game.RunCommand("/msg You've got the first warning for ''xd'' ["+warnings+"]");
+                   break;
+                   case 6:
+                   Game.RunCommand("/msg Only the Host can write this word ["+warnings+"]");
+                   break;
+                   case 7:
+                   Game.RunCommand("/msg "+ua.User.Name+", this word is forbidden ["+warnings+"]");
+                   break;
+                }
+            }
+            else if (warnings == WARNINGS - 1)
+            {
+                message = string.Format("", s, (this.Final == Punishment.BAN ? "ban" : "kick")); 
+                warnings ++;               
+                Game.PlaySound("MenuCancel", new Vector2(0,0), 1f);
+                Game.PlaySound("MenuOk", new Vector2(0,0), 1f);
+                Game.PlaySound("MenuCancel", new Vector2(0,0), 1f);
+                Random rnd = new Random();
+                switch(rnd.Next(0,7))
+                {
+                   case 0:
+                   Game.RunCommand("/msg It was the second and last warning! Don't write ''xd'' again, or you will be exiled! ["+warnings+"]");
+                   break;
+                   case 1:
+                   Game.RunCommand("/msg If you will write ''xd'' again - you will be exiled! ["+warnings+"]");
+                   break;
+                   case 2:
+                   Game.RunCommand("/msg This word is not allowed, so because of this you will be exiled after your next ''xd''! ["+warnings+"]");
+                   break;
+                   case 3:
+                   Game.RunCommand("/msg Don't write ''xd'' again, or will be exiled! ["+warnings+"]");
+                   break;
+                   case 4:
+                   Game.RunCommand("/msg Third ''xd'' will lead you to exile! ["+warnings+"]");
+                   break;
+                   case 5:
+                   Game.RunCommand("/msg Only the Host can write this word ["+warnings+"]");
+                   break;
+                   case 6:
+                   Game.RunCommand("/msg "+ua.User.Name+", second warning for you, before the exile! ["+warnings+"]");
+                   break;
+               }
+            }         
+            else if (warnings == WARNINGS)
+            {
+                Game.PlaySound("ChurchBell1", new Vector2(0,0), 1f);
+                Random rnd = new Random();
+                switch(rnd.Next(0,5))
+                {
+                   case 0:
+                   Game.ShowChatMessage("Preparing for the exile...  [x]",new Color(250,125,0));
+                   break;
+                   case 1:
+                   Game.ShowChatMessage("You didn't follow the rule, so get exile right now! [x]",new Color(250,125,0));
+                   break;
+                   case 2:
+                   Game.ShowChatMessage("You will be added to the exiled-list [x]",new Color(250,125,0));
+                   break;
+                   case 3:
+                   Game.ShowChatMessage("You didn't stop at the last warning, so you will be exiled [x]",new Color(250,125,0));
+                   break;
+                   case 4:
+                   Game.ShowChatMessage(ua.User.Name+", you will be exiled from the server for non-compliance with the rule [x]",new Color(250,125,0));
+                   break;
+                }
+                IObjectTimerTrigger t2 = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+                t2.SetIntervalTime(1000);
+                t2.SetRepeatCount (1);
+                t2.SetScriptMethod("rt1");
+                t2.Trigger();
+                IObjectTimerTrigger t3 = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+                t3.SetIntervalTime(2000);
+                t3.SetRepeatCount (1);
+                t3.SetScriptMethod("rt2");
+                t3.Trigger();
+                IObjectTimerTrigger t4 = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+                t4.SetIntervalTime(2950);
+                t4.SetRepeatCount (1);
+                t4.SetScriptMethod("rt3");
+                t4.Trigger();
+                var ip = ua.User.ConnectionIP;
+
+                new Timers("Global").AddTimer(AddPunishmentDelay ? 3000 : 1, 1, (args) =>
+                {
+                    if (Game.GetActiveUsers().Any(u => u.ConnectionIP.Equals(ip)))
+                        Game.RunCommand(this.Final == Punishment.BAN ? "/ban " : "/kick " + ua.User.Name);
+
+                    else if (!Game.GetActiveUsers().Any(u => u.ConnectionIP.Equals(ip)))   
+                    {
+                        this.Log(ip, this.Final.ToString());
+                    }
+                        Game.RunCommand("/kick " + ua.User.Name);
+                        Game.RunCommand("/kick " + ua.User.Name);
+                        Game.RunCommand("/kick " + ua.User.Name);
+                        Game.RunCommand("/kick " + ua.User.Name);
+                        Game.RunCommand("/kick " + ua.User.Name);  
+                        {
+                           IObjectTimerTrigger t = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+                           t.SetIntervalTime(501);
+                           t.SetRepeatCount (1);
+                           t.SetScriptMethod("x");
+                           t.Trigger();                         
+                        }                                                                         
+                  });
+            }
+
+            switch (ANNOUNCE_MESSAGES)
+            {
+                case true: 
+                    if (message != "")
+                        Game.ShowChatMessage(message, ChatMessageColor);
+
+                    break;
+
+                case false:
+                    if (message != "")
+                        Game.ShowChatMessage(message, ChatMessageColor, ua.User.UserIdentifier);
+
+                    break;
+            }
+            player.Warnings = warnings;
+            return;
+        }
+    }
+} 
+
+public void x(TriggerArgs args)
+{
+   Game.PlaySound("TutorialSuccess1", new Vector2(0,0), 1f);
+   Game.PlaySound("ElevatorDing", new Vector2(0,0), 0.6f);
+   Game.PlaySound("TutorialSuccess2", new Vector2(0,0), 1f);
+   Game.ShowChatMessage("Intruder was expelled from the server",new Color(5,95,15));
+}
+public void rt1(TriggerArgs args)
+{
+  Game.PlaySound("StreetsweeperBootingDone", new Vector2(0,0), 1f);
+  Game.ShowChatMessage("Preparing: 3...", new Color(255,0,0));
+}
+public void rt2(TriggerArgs args)
+{
+  Game.PlaySound("StreetsweeperBootingDone", new Vector2(0,0), 1f);
+  Game.ShowChatMessage("Preparing: 2...", new Color(190,170,0));
+}
+public void rt3(TriggerArgs args)
+{
+  Game.PlaySound("C4Detonate", new Vector2(0,0), 1f);
+  Game.ShowChatMessage("Preparing: 1...", new Color(15,135,5));
+}
+public class Player 
+{
+   public static List<Player> Players = new List<Player>();
+   public int Warnings { get; set; }
+   public IPlayer Ply { get; set; }
+   public IUser User { get; set; }
+   public string IP { get; set; }
+   public bool IsHost { get; set; }
+  
+   public Player (IPlayer ply)
+   {
+       this.Ply = ply;
+       this.User = ply.GetUser();
+       this.Warnings = 0;
+       this.IP = User.ConnectionIP;
+       this.IsHost = User.IsHost;
+   }
+
+   public Player (IUser user)
+   {
+       this.Ply = null;
+       this.User = user;
+       this.Warnings = 0;
+       this.IP = user.ConnectionIP;
+       this.IsHost = user.IsHost;
+   }
+
+   public Player (IPlayer ply, int warnings)
+   {
+       this.Ply = ply;
+       this.User = ply.GetUser();
+       this.Warnings = warnings;
+       this.IP = User.ConnectionIP;
+       this.IsHost = User.IsHost;
+   }
+
+    public static Player GetPlayer(IUser user)
+    {
+        return Players.FirstOrDefault(p => p.IP == user.ConnectionIP);
+    }
+}
+
+public enum Punishment 
+{
+   BAN, KICK
+}
+
+class Timers 
+{ 
+    public string GlobalMethod { get; set; }
+    public static Dictionary<string, Action<TriggerArgs>> Actions = new Dictionary<string, Action<TriggerArgs>>();
+
+    public Timers(string globalMethod) 
+    {
+        this.GlobalMethod = globalMethod;
+    }
+
+    public Timers AddTimer(int interval, int repeatCount, Action<TriggerArgs> action) 
+    {
+        var timer = Game.CreateObject("TimerTrigger", Vector2.Zero) as IObjectTimerTrigger; 
+        var guid = Guid.NewGuid().ToString();
+        timer.SetIntervalTime(interval);
+        timer.SetRepeatCount(repeatCount); 
+        timer.SetScriptMethod(GlobalMethod);
+        timer.CustomId = guid;
+        timer.Trigger();
+        Actions.Add(guid, action);
+
+        return this;
+    }
+
+    public static void HandleTimers(TriggerArgs args) 
+    {
+        var guid = (args.Caller as IObject).CustomId;
+        var action = Actions[guid];
+        
+        action.Invoke(args);
+    }
+}
+
+public static string Capitalize(string input)
+{
+    if (String.IsNullOrEmpty(input))
+        return "";
+
+    return input.First().ToString().ToUpper() + String.Join("", input.Skip(1));
+}
+
+public string[] Sanitize(string input) 
+{
+    Func<string, string, string, string> replace = (a, b, c) =>
+    {
+        var x = b.Split(',').ToList();
+        var y = c.Split(',');
+        var r = "";
+
+        foreach (var l in a) 
+        {
+            if (x.Contains(l.ToString())) 
+            {
+                r += y[x.IndexOf(l.ToString())];
+            }
+            else 
+            {
+                r += l;
+            }
+        }
+
+        return r;
+    };
+ 
+    var list = new List<string>();
+    var bs = replace(input, "0,4,5,3,8,7,2", "o,a,s,e,b,t,r");
+    list.Add(replace(bs, "@", "a"));
+    list.Add(replace(bs, "@", "o"));
+    list.Add(replace(bs, "9", "g"));
+    list.Add(replace(bs, "6", "g")); 
+    list.Add(replace(bs, "|", "i"));
+    list.Add(replace(bs, "l", "i"));
+    list.Add(replace(bs, "1", "i"));
+    list.Add(replace(bs, "!", "i"));
+    list.Add(replace(bs, "i", "l"));
+    list.Add(replace(bs, "$", "s"));
+    list.Add(replace(bs, "5", "s"));
+    list.Add(string.Join("", input.ToArray().Distinct()));
+
+    var newList = new List<string>();
+    foreach (var i in list)
+        newList.Add(string.Join("", i.ToArray().Distinct()));
+
+    list.AddRange(newList);
+    list.Remove(input);
+
+    list = list.Where(x => x.Length > 2).ToList();
+    return list.Distinct().ToArray();
+}
+
+public string Truncate2(string input) 
+{
+    string str = ""; 
+    string[] strarr = input.Split();
+
+    for (int i = 0; i < input.Split(' ').Length; i++)
+    {
+        str += input.Split(' ')[i];
+
+        if (i != input.Split(' ').Length - 1 && (input.Split(' ')[i].Length <= 2 && input.Split(' ')[i + 1].Length <= 2))
+            continue;
+
+        str += " ";
+    }
+
+    return str;
+}
+
+public void Log(string ip, string punishment) 
+{ 
+    string log;
+    if (!Game.LocalStorage.TryGetItemString("plist", out log))
+    {
+        log = "";
+    }
+
+    log += ip + ";" + punishment + ",";
+    Game.LocalStorage.SetItem("plist", log);
+}
+
+public void Global (TriggerArgs args) 
+{
+    Timers.HandleTimers(args);
+}

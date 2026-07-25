@@ -1,0 +1,317 @@
+Events.UserMessageCallback UserMessageCallback = null;
+
+IUser host = null;
+
+public static string curobj;
+public static bool KeepObjects = false;
+public static bool MakeStatic = false;
+public static float ObjAngle = 0;
+public static float AngleVel = 0;
+
+List<string> log = new List<string>{null};
+public static bool debuginfo = false;
+
+IList<Gunner> Gunners = new List<Gunner>();
+static List<Gloo> Gloos = new List<Gloo>();
+ 
+public void OnStartup(){
+	if(!Game.LocalStorage.TryGetItemString("bsbullet", out curobj))
+	{
+		curobj = "Baseball";
+	}
+	if(!Game.LocalStorage.TryGetItemBool("bskeepobj", out KeepObjects))
+	{
+		KeepObjects = false;
+	}
+	if(!Game.LocalStorage.TryGetItemBool("bsmakestat", out MakeStatic))
+	{
+		MakeStatic = false;
+	}
+	if(!Game.LocalStorage.TryGetItemFloat("bsobjangle", out ObjAngle))
+	{
+		ObjAngle = 0;
+	}
+	if(!Game.LocalStorage.TryGetItemFloat("bsanglevel", out AngleVel))
+	{
+		AngleVel = 0;
+	}
+
+	UserMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+
+	foreach(IPlayer ply in Game.GetPlayers()){
+		Gunners.Add(new Gunner(ply));
+		host = ply.GetUser();
+	}
+
+	IObjectTimerTrigger stepper = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	stepper.SetIntervalTime(10);	
+	stepper.SetRepeatCount(0);
+	stepper.SetScriptMethod("GameTick");
+	stepper.Trigger();
+}
+
+public void GameTick(TriggerArgs args){
+	foreach(Gunner o in Gunners){
+		o.Step();
+	}
+	foreach(Gloo o in Gloos){
+		o.Step();
+	}
+}
+
+class Gloo{
+	IObject Object = null;
+	
+	public Gloo(Vector2 pos,Vector2 vec){
+		Object = Game.CreateObject(curobj,pos);
+		Object.CustomID="bs";
+		if(MakeStatic){Object.SetBodyType(BodyType.Static);}else{
+			Object.SetLinearVelocity(vec);
+			Object.TrackAsMissile(true);
+		}
+		if(KeepObjects){Object.CustomID="bskeepobj";}
+		Object.SetAngularVelocity(AngleVel);
+		Object.SetAngle(ObjAngle);
+	}
+	public void Step(){
+		if(Object != null && !Object.IsRemoved){
+			if(!Object.CustomID.Contains("keepobj"))
+			{
+				if((Math.Abs(Object.GetLinearVelocity().X) < 1 && Math.Abs(Object.GetLinearVelocity().Y) < 1) || !Object.IsMissile){
+					Object.Destroy();
+			}
+			}
+		}
+	}
+}
+
+class Gunner{
+	IPlayer Player = null;
+	int Lshot = 0;
+	int Fired = 0;
+	int HipFired = 0;
+	IObject Obj = null;
+
+	public Gunner(IPlayer ply){
+		Player = ply;
+		Obj = Game.CreateObject("InvisibleBlockNoCollision");	
+		Obj.CustomID = "REMOVE_LATER";	
+		Obj.SetSizeFactor(new Point(2,2));		
+	}
+	public void Step(){
+		Obj.SetWorldPosition(new Vector2(0,10000));
+		CollisionFilter Col = Obj.GetCollisionFilter();
+		Col.AboveBits = 0;
+		Col.CategoryBits = 0;
+		Col.MaskBits = 0;
+		Col.BlockMelee = false;
+		Col.ProjectileHit = true;
+		Obj.SetCollisionFilter(Col);	
+
+		if(Player != null && !Player.IsRemoved && !Player.IsDead){
+			if(Lshot != Player.Statistics.TotalShotsFired){
+				Lshot = Player.Statistics.TotalShotsFired;
+				Fired = 50;
+			}else if(Fired > 0){
+				Fired --;
+			}
+			if(Player.IsHipFiring && HipFired == 0){
+				HipFired = 50;
+			}else if(HipFired > 0){
+				HipFired --;
+			}
+			if(!Player.IsHipFiring){
+				HipFired = 0;
+			}
+			if(Fired > 49 || HipFired > 30){	
+				Obj.SetWorldPosition(Player.GetWorldPosition() + new Vector2(-6,16) + Player.AimVector * 20);
+			}
+			if(Fired == 50){
+				Gloos.Add(new Gloo(Player.GetWorldPosition() + new Vector2(0,12) + Player.AimVector * 20,Player.AimVector * 20));	
+			}
+		}
+	}
+}
+
+public void OnUserMessage(UserMessageCallbackArgs args) 
+{
+	if(args.User != null && args.User.Name != null && args.User.UserIdentifier != null){
+		try 
+		{
+			switch (args.Command)
+			{
+				case "BSHELP":
+					Game.ShowChatMessage("--- Bullet Script by Ol1vver", new Color(0, 255, 0), args.User.UserIdentifier);
+					if(args.User.IsModerator)
+					{
+						if(args.User.IsHost)
+						{
+							Game.ShowChatMessage("/bsclear - [HOST] = Clear map from all objects spawned by this script", new Color(0, 0, 255), args.User.UserIdentifier);
+						}
+						Game.ShowChatMessage("/bsbullet <objectname> - [MOD+] = Change bullet to specified object | BASEBALL by default", new Color(0, 0, 255), args.User.UserIdentifier);
+						Game.ShowChatMessage("/bskeep <true/false> - [MOD+] = Switch to keep bullets or to not when they stop (Will switch MakeStatic if FALSE) | FALSE by default", new Color(0, 0, 255), args.User.UserIdentifier);
+						Game.ShowChatMessage("/bsstatic - [MOD+] = Switch to make bullets static when shot (Will switch KeepBullets if TRUE) | FALSE by default", new Color(0, 0, 255), args.User.UserIdentifier);
+						Game.ShowChatMessage("/bsangle - [MOD+] = Angle of object when shooting | 0 by default", new Color(0, 0, 255), args.User.UserIdentifier);
+						Game.ShowChatMessage("/bsanvel - [MOD+] = Angular velocity of object when shooting | 0 by default", new Color(0, 0, 255), args.User.UserIdentifier);
+					}
+					Game.ShowChatMessage("/bsinfo - [ALL] = View information about selected variables", new Color(0, 0, 255), args.User.UserIdentifier);
+					Game.ShowChatMessage("Some commands may be hidden because you don't have enough permissions to use them.", new Color(0,255,255), args.User.UserIdentifier);
+
+					string permlevel="Player";
+					if(args.User.IsModerator){permlevel="Moderator";}
+					if(args.User.IsHost){permlevel="Host";}
+					Game.ShowChatMessage("Your current permission level: '"+permlevel+"'", new Color(0,255,255), args.User.UserIdentifier);
+				break;
+
+				case "BSBULLET":
+					if(args.CommandArguments != null)
+					{
+						if(args.User.IsHost || args.User.IsModerator)
+						{
+							Game.ShowChatMessage("Changed bullet from: '" + curobj + "' to: '" + args.CommandArguments + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the bullet from: '" + curobj + "' to: '" + args.CommandArguments + "'", new Color(0, 255, 0));
+							curobj = args.CommandArguments;
+							Game.LocalStorage.SetItem("bsbullet", curobj);
+						}
+					}
+				break;
+
+				case "BSANVEL":
+					if(args.CommandArguments != null)
+					{
+						if(args.User.IsHost || args.User.IsModerator)
+						{
+							Game.ShowChatMessage("Changed angular velocity from: '" + AngleVel + "' to: '" + args.CommandArguments + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the angular velocity from: '" + AngleVel + "' to: '" + args.CommandArguments + "'", new Color(0, 255, 0));
+							AngleVel = Int32.Parse(args.CommandArguments);
+							Game.LocalStorage.SetItem("bsanglevel", AngleVel);
+						}
+					}
+				break;
+
+				case "BSANGLE":
+					if(args.CommandArguments != null)
+					{
+						if(args.User.IsHost || args.User.IsModerator)
+						{
+							Game.ShowChatMessage("Changed angle from: '" + ObjAngle + "' to: '" + args.CommandArguments + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the angle from: '" + ObjAngle + "' to: '" + args.CommandArguments + "'", new Color(0, 255, 0));
+							ObjAngle = Int32.Parse(args.CommandArguments);
+							Game.LocalStorage.SetItem("bsobjangle", ObjAngle);
+						}
+					}
+				break;
+
+				case "BSCLEAR":
+					if(args.CommandArguments != null)
+					{
+						if(args.User.IsHost || args.User.IsModerator)
+						{
+							int count = 0;
+							foreach(IObject o in Game.GetObjectsByCustomID(new string[] {"bs", "bskeepobj"})){o.Remove();count++;}
+							Game.ShowChatMessage("Cleared all objects (" + count + " objects)", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has cleared all objects (" + count + " objects)", new Color(0, 255, 0));
+						}
+					}
+				break;
+
+				case "BSKEEP":
+					if(args.User.IsHost || args.User.IsModerator)
+					{
+						if(KeepObjects)
+						{
+							KeepObjects = false;
+							Game.ShowChatMessage("Changed KeepObjects from: 'true' to: 'false'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the variable 'KeepObjects' from: 'true' to 'false'", new Color(0, 255, 0));
+							if(MakeStatic)
+							{
+								MakeStatic = false;
+								Game.LocalStorage.SetItem("bsmakestat", MakeStatic);
+
+								Game.ShowChatMessage("Changed MakeStatic from: 'true' to: 'false'", new Color(0, 0, 255), args.User.UserIdentifier);
+								Game.ShowChatMessage(args.User.Name + " has changed the variable 'MakeStatic' from: 'true' to: 'false'", new Color(0, 255, 0));
+							}
+						}
+						else
+						{
+							KeepObjects = true;
+							Game.ShowChatMessage("Changed KeepObjects from: 'false' to: 'true'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the variable 'KeepObjects' false: 'false' to: 'true'", new Color(0, 255, 0));
+						}
+						Game.LocalStorage.SetItem("bskeepobj", KeepObjects);
+					}
+				break;
+
+				case "BSSTATIC":
+					if(args.User.IsHost || args.User.IsModerator)
+					{
+						if(MakeStatic)
+						{
+							MakeStatic = false;
+							Game.ShowChatMessage("Changed MakeStatic from: 'true' to: 'false'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the variable 'MakeStatic' from: 'true' to: 'false'", new Color(0, 255, 0));
+						}
+						else
+						{
+							MakeStatic = true;
+							Game.ShowChatMessage("Changed MakeStatic from: 'false' to: 'true'", new Color(0, 0, 255), args.User.UserIdentifier);
+							Game.ShowChatMessage(args.User.Name + " has changed the variable 'MakeStatic' from: 'false' to: 'true'", new Color(0, 255, 0));
+							if(!KeepObjects)
+							{
+								KeepObjects = true;
+								Game.LocalStorage.SetItem("bskeepobj", KeepObjects);
+								Game.ShowChatMessage("Changed KeepObjects from: 'false' to: 'true'", new Color(0, 0, 255), args.User.UserIdentifier);
+								Game.ShowChatMessage(args.User.Name + " has changed the variable 'KeepObjects' from: 'false' to: 'true'", new Color(0, 255, 0));
+							}
+						}
+						Game.LocalStorage.SetItem("bsmakestat", MakeStatic);
+					}
+				break;
+
+				case "BSINFO":
+					Game.ShowChatMessage("Current bullet: '" + curobj + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+					Game.ShowChatMessage("Will keep objects?: '" + KeepObjects + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+					Game.ShowChatMessage("Will make objects static?: '" + MakeStatic + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+					Game.ShowChatMessage("Bullet angular velocity: '" + AngleVel + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+					Game.ShowChatMessage("Bullet angle: '" + ObjAngle + "'", new Color(0, 0, 255), args.User.UserIdentifier);
+					if(args.User.IsHost)
+					{
+						Game.ShowChatMessage("Send debug information?: '" + debuginfo + "'", new Color(0, 255, 255), args.User.UserIdentifier);
+					}
+				break;
+
+				case "BSDEBUG":
+					if(args.User.IsHost)
+					{
+						if(debuginfo)
+						{
+							debuginfo = false;
+							log = new List<string>{null};
+							Game.ShowChatMessage("Will no longer receive debug information.", new Color(0, 0, 255), args.User.UserIdentifier);
+						}
+						else
+						{
+							debuginfo = true;
+							Game.ShowChatMessage("Will now receive debug information.", new Color(0, 0, 255), args.User.UserIdentifier);
+						}
+					}
+				break;
+
+				case "BSLOG":
+					if(args.User.IsHost && debuginfo)
+					{
+						foreach(string error in log)
+						{
+							Game.ShowChatMessage(error, new Color(255, 0, 0), args.User.UserIdentifier);
+						}
+					}
+				break;
+			}
+		}
+		catch (Exception oof)
+		{
+			Game.WriteToConsole(oof.Message);
+			log.Add(oof.Message);
+			if(debuginfo){Game.ShowChatMessage("An error has occured! '"+oof.Message+"'", new Color(255,0,0), host.UserIdentifier);}
+		}
+}}

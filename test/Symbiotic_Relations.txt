@@ -1,0 +1,204 @@
+public static Events.PlayerDamageCallback m_playerDamageEvent = null;
+public static Events.UpdateCallback m_updateEvent = null;
+
+public static List<IPlayer> HitBuffer = new List<IPlayer>();
+public static int TimeTest = 0;
+
+public void OnStartup(){
+	m_playerDamageEvent = Events.PlayerDamageCallback.Start(OnPlayerDamage);
+	m_updateEvent = Events.UpdateCallback.Start(OnUpdate, 0);
+}
+
+public void OnPlayerDamage(IPlayer Player, float Damage){
+	HitBuffer.Add(Player);
+}
+
+public void OnUpdate(float Elapsed){
+	Symbiote.Step();
+	HitBuffer.Clear();
+
+	if(TimeTest++ > 1000){
+		TimeTest = 0;
+	}
+}
+
+public static class Symbiote{
+	static IPlayer Player = null;
+	static IPlayer Host = null;
+
+	static PlayerModifiers HostMods = null;
+
+	static IProfile Skin;
+	static IProfile HostSkin;
+
+	static bool Stop = false;
+
+	static Symbiote(){
+		Skin = new IProfile();
+		Skin.Skin = new IProfileClothingItem("Warpaint", "Skin5","ClothingDarkGray");
+		Skin.ChestUnder = new IProfileClothingItem("Sweater", "ClothingDarkGray");
+		Skin.Hands = new IProfileClothingItem("Gloves", "ClothingDarkGray");
+		Skin.Legs = new IProfileClothingItem("Pants", "ClothingDarkGray");
+		Skin.Feet = new IProfileClothingItem("Shoes", "ClothingDarkGray");
+		Skin.Accessory = new IProfileClothingItem("Balaclava", "ClothingDarkGray");
+	}
+
+	public static void Step(){
+		
+		if(Player != null && !Player.IsDead && !Player.IsRemoved){
+
+			PlayerModifiers mods = Player.GetModifiers();
+			mods.MeleeDamageDealtModifier = 0.1f;
+			mods.CurrentHealth = 100;
+			mods.CurrentEnergy = 100;
+			Player.SetModifiers(mods);
+
+			if(GetRealPlayers().Length <= 2){
+				Stop = true;	
+				Player.Remove();
+			}
+
+			if(Player.IsMeleeAttacking || Player.IsJumpAttacking || Player.IsKicking || Player.IsJumpKicking){
+				
+				foreach(IPlayer ply in HitBuffer){
+
+					if(ply != Player && !ply.IsDead && !ply.IsRemoved && Vector2.Distance(Player.GetWorldPosition(), ply.GetWorldPosition()) < 16){
+						Transfer(ply.UniqueID);
+						break;
+					}
+				}
+			}
+		}
+
+		if(Host != null && TimeTest % 100 == 0){
+			PlayerModifiers mods = Host.GetModifiers();
+
+			//Health Drain
+			float Health = mods.CurrentHealth - 5;
+			if(Health > 0){
+				mods.CurrentHealth = Health;
+			}else{
+				Host.Kill();
+			}
+			//Buffs
+			mods.MeleeForceModifier = 2;
+			mods.MeleeDamageDealtModifier = 2;
+			mods.CurrentEnergy = 100;
+
+			Host.SetModifiers(mods);
+		}
+
+		if(Host != null && Host.IsHoldingPlayerInDive){
+			Transfer(Host.HoldingPlayerInDiveID);
+		}
+
+		if(Host != null && Host.IsHoldingPlayerInGrab){
+			Transfer(Host.HoldingPlayerInGrabID);
+		}
+
+		if((Player == null || Player.IsDead || Player.IsRemoved) && (Host == null || Host.IsRemoved)){
+			Respawn();
+		}
+
+		if(Host != null && Host.IsDead && !Host.IsRemoved && (Player == null || Player.IsDead || Player.IsRemoved)){
+			Leave();
+		}
+	}
+
+	static void Respawn(){
+		
+		if(!Stop){
+		
+			if(Player != null){
+				Player.Remove();
+			}
+
+			Player = GetBot(GetPrioritySpawn().GetWorldPosition() + new Vector2(0,-8));
+		}
+	}
+
+	static void Leave(){
+		
+		if(!Stop){
+			Player = GetBot(Host.GetWorldPosition());
+			Host.Gib();
+		}
+	}
+
+	static IPlayer GetBot(Vector2 Position){
+		IObjectPlayerSpawnTrigger spawn = (IObjectPlayerSpawnTrigger)Game.CreateObject("PlayerSpawnTrigger", Position);
+		spawn.SetSpawnTeam(PlayerTeam.Independent);
+		spawn.SetPredefinedAI(PredefinedAIType.ZombieB);
+
+		IPlayer ret = null;
+		ret = spawn.CreatePlayer();
+		ret.SetProfile(Skin);
+		ret.SetBotName("Symbiote");
+
+		spawn.Remove();
+		return ret;
+	}
+
+	static void Transfer(int PlayerID){
+		
+		if(Host != null){
+			HostMods.CurrentHealth = Host.GetHealth();
+			HostMods.CurrentEnergy = 100;
+			Host.SetModifiers(HostMods);
+			Host.SetProfile(HostSkin);
+		}
+		Host = Game.GetPlayer(PlayerID);
+		HostMods = Host.GetModifiers();
+		HostSkin = Host.GetProfile();
+
+		Game.PlayEffect("CFTXT", Host.GetWorldPosition(), "Infected!");
+
+		Host.SetProfile(Skin);
+		IProfile tempSwitch = Host.GetProfile();
+		tempSwitch.Head = HostSkin.Head;
+		tempSwitch.ChestOver = HostSkin.ChestOver;
+		Host.SetProfile(tempSwitch);
+
+		Player.Remove();
+	}
+}
+
+public static IPlayer[] GetRealPlayers(){
+	List<IPlayer> Players = new List<IPlayer>();
+	
+	foreach(IPlayer ply in Game.GetPlayers()){
+	
+		if(!ply.IsDead && !ply.IsRemoved){
+			Players.Add(ply);
+		}
+	}
+	return Players.ToArray();
+}
+
+public static IObject GetPrioritySpawn(){
+	IObject ret = null;
+	float dist  = -1;
+	
+	foreach(IObject obj in Game.GetObjectsByName("SpawnPlayer")){
+		Vector2 pos = obj.GetWorldPosition();
+		float mydist = -1;
+		
+		foreach(IPlayer ply in Game.GetPlayers()){
+			if(!ply.IsDead){
+				Vector2 comp = ply.GetWorldPosition();
+				float plydist = (float)Math.Abs(Math.Sqrt(Math.Pow(pos.X - comp.X,2) + Math.Pow(pos.Y - comp.Y,2)));				
+						
+				if(mydist == -1 || mydist > plydist){
+					mydist = plydist;
+				}
+			}
+		}
+	
+		if(dist == -1 || dist < mydist){
+			ret = obj;
+			dist = mydist;
+		}
+	}
+	
+	return ret;
+}

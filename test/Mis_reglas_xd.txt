@@ -1,0 +1,28 @@
+// Primero, necesitas una lista para llevar un registro de los jugadores a los que ya se les ha mostrado las reglas.
+List<IPlayer> jugadoresQueHanVistoLasReglas = new List<IPlayer>();
+
+// Luego, puedes usar el evento OnPlayerCreated para enviar las reglas a los jugadores cuando se unen al servidor.
+public void OnPlayerCreated(IPlayer player)
+{
+    // Comprueba si el jugador ya ha visto las reglas.
+    //if (!jugadoresQueHanVistoLasReglas.Contains(player))
+    //{
+        // Si no las ha visto, envía las reglas y añade al jugador a la lista.
+			 Game.RunCommand("/whisper {player.Name} {ola}");
+			Game.ShowChatMessage("SI XD");
+        jugadoresQueHanVistoLasReglas.Add(player);
+    //}
+}
+
+// Finalmente, puedes usar el evento OnCommandInput para permitir a los jugadores ver las reglas de nuevo.
+public void OnCommandInput(IPlayer player, string command)
+{
+    // Comprueba si el comando es "/reglas".
+    if (command == "reglas")
+    {
+        // Si es así, envía las reglas de nuevo.
+        Game.RunCommand("/whisper {player.Name} {adios}");
+			Game.ShowChatMessage("siuuuu");
+
+    }
+}

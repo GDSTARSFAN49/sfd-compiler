@@ -1,0 +1,1299 @@
+internal static Random Rnd = null;
+
+        private CaptureBox m_captureBox = null;
+        private Dictionary<int, UserRespawn> m_userRespawn = new Dictionary<int, UserRespawn>();
+        private float m_captureBoxSpawnTime = 0f;
+        private CaptureBoxMode m_captureBoxMode = CaptureBoxMode.Hiding;
+        private HashSet<int> m_playersWithUsers = new HashSet<int>();
+
+        static float RESPAWN_START_TIME = 6000f;
+        static float RESPAWN_INCREASE_TIME = 3000f;
+        static float RESPAWN_MAX_TIME = 12000f;
+
+        static Color SpawnMessageColor { get { return new Color(242, 157, 208); } }
+
+        public class UserRespawn
+        {
+
+            /// <summary>
+            /// The user identifier
+            /// </summary>
+            public int UserIdentifier { get; private set; }
+
+            /// <summary>
+            /// If respawn notice has been shown to the user.
+            /// </summary>
+            public bool DeathInitDone { get; set; }
+
+            /// <summary>
+            /// Keeps track on which message has been shown.
+            /// </summary>
+            public int LastRespawnMessageTimeRemaining { get; set; }
+
+            /// <summary>
+            /// Current respawn timer, in ms.
+            /// </summary>
+            public float RespawnTimer { get; set; }
+
+            /// <summary>
+            /// Total time to wait before spawning. Increases for each death. in ms.
+            /// </summary>
+            public float TotalTime { get; set; }
+
+            /// <summary>
+            /// The timestamp the user was spawned.
+            /// </summary>
+            public float SpawnTimestamp { get; set; }
+
+            /// <summary>
+            /// Total times the user has spawned.
+            /// </summary>
+            public int TotalSpawns { get; set; }
+
+            /// <summary>
+            /// If the user should do a quick respawn (dies quickly after spawning, give the user another chance fast!).
+            /// </summary>
+            public bool QuickRespawn { get; set; }
+
+            public UserRespawn(int userIdentifier)
+            {
+                UserIdentifier = userIdentifier;
+                TotalTime = RESPAWN_START_TIME;
+                TotalSpawns = 0;
+            }
+        }
+
+
+        public enum CaptureBoxMode
+        {
+            Hiding = 0,
+            Spawning = 1,
+            Active = 2,
+            Despawning = 3
+        }
+
+        public void OnStartup()
+        {
+            // This script only works on Versus type maps. Failsafe.
+            if (Game.GetMapType() != MapType.Versus)
+                return;
+
+            Rnd = new Random(Guid.NewGuid().GetHashCode()); // some sort of seed!
+            Game.AutoVictoryConditionEnabled = false; // disable auto-victory conditions in this mode.
+            Game.RunCommand("/sd 0"); // disable sudden-death in this mode.
+            Game.AutoScoreConditionEnabled = false; // disable auto-score conditions in this mode.
+            Events.UpdateCallback.Start(Update);
+
+            int userCount = Game.GetActiveUsers().Length;
+            if (userCount <= 2)
+            {
+                RESPAWN_MAX_TIME = 12000f;
+                RESPAWN_INCREASE_TIME = 2000f;
+                RESPAWN_START_TIME = 6000f;
+            }
+            else if (userCount <= 4)
+            {
+                RESPAWN_MAX_TIME = 16000f;
+                RESPAWN_INCREASE_TIME = 2000f;
+                RESPAWN_START_TIME = 6000f;
+            }
+            else if (userCount <= 6)
+            {
+                RESPAWN_MAX_TIME = 18000f;
+                RESPAWN_INCREASE_TIME = 3000f;
+                RESPAWN_START_TIME = 9000f;
+            }
+            else
+            {
+                RESPAWN_MAX_TIME = 22000f;
+                RESPAWN_INCREASE_TIME = 4000f;
+                RESPAWN_START_TIME = 10000f;
+            }
+
+            // init m_userRespawn with current users
+            foreach (IUser user in Game.GetActiveUsers())
+            {
+                m_userRespawn.Add(user.UserIdentifier, new UserRespawn(user.UserIdentifier));
+            }
+
+            UpdatePlayersWithUsers();
+
+        }
+
+        public void OnShutdown()
+        {
+            // The game will always call the following method "public void OnShutdown()" before a map restart (or script deactivates). 
+            // Perform some cleanup here or store some final information to Game.Data if needed.
+            Game.AutoVictoryConditionEnabled = true; // enalbe auto-victory conditions again.
+            Game.AutoScoreConditionEnabled = true; // enable auto-score conditions again.
+        }
+
+        float m_prevTotalElapsedGameTime = 0f;
+        public void Update(float t)
+        {
+            // Recalcualte t based on Game.TotalElapsedGameTime to get slowmotion time.
+            t = Game.TotalElapsedGameTime - m_prevTotalElapsedGameTime;
+            m_prevTotalElapsedGameTime = Game.TotalElapsedGameTime;
+
+            if (m_captureBox == null)
+            {
+                m_captureBox = new CaptureBox(16, 8);
+                m_captureBox.Hide();
+                //m_captureBox.SetTexts("Top row", "Middle row", "Bottom row");
+                m_captureBox.SetTextColors(Color.White, new Color(255, 200, 200), Color.White);
+                if (!Game.TimeLimitActive)
+                {
+                    // enable time-limit in this mode
+                    Game.RunCommand("/tl 210"); // default to 3.5 minutes
+                }
+            }
+
+            UpdatePlayersWithUsers();
+
+            // Always update the capture box
+            m_captureBox.Update(t, m_captureBoxMode == CaptureBoxMode.Active && !Game.IsGameOver);
+            if (Game.IsGameOver)
+            {
+                if (m_captureBox.Showing)
+                {
+                    m_captureBox.Hide();
+                }
+            }
+            else
+            {
+                switch (m_captureBoxMode)
+                {
+                    case CaptureBoxMode.Hiding:
+                        {
+                            m_captureBox.UpdateBotGuardTargets();
+
+                            m_captureBoxSpawnTime += t;
+                            if (m_captureBoxSpawnTime > 6000f)
+                            {
+                                // Start spawning
+                                m_captureBoxSpawnTime = 0f;
+                                m_captureBoxMode = CaptureBoxMode.Spawning;
+                                m_captureBox.SetBoxPosition(GetRandomSpawnPosition(m_captureBox.Area) + new Vector2(0f, 8f));
+                                m_captureBox.Show();
+                                Game.PlaySound("TutorialSuccess1", m_captureBox.GetBoxPosition());
+                            }
+                        }
+                        break;
+                    case CaptureBoxMode.Spawning:
+                        {
+                            m_captureBoxSpawnTime += t;
+                            int blink = (int)(m_captureBoxSpawnTime / 500f);
+                            if (blink % 2 == 1)
+                            {
+                                m_captureBox.Hide();
+                            }
+                            else
+                            {
+                                if (m_captureBox.Hiding)
+                                {
+                                    Game.PlaySound("TutorialSuccess1", m_captureBox.GetBoxPosition());
+                                    m_captureBox.Show();
+                                }
+                            }
+                            if (m_captureBoxSpawnTime > 2000f)
+                            {
+                                Game.PlaySound("TutorialSuccess2", m_captureBox.GetBoxPosition());
+                                m_captureBox.Show();
+                                m_captureBoxMode = CaptureBoxMode.Active;
+                                m_captureBoxSpawnTime = 0f;
+                                // show message in chat that the box has spawned and must be contested for someone to win!
+                                Game.ShowChatMessage("Contest the blue box to win!", new Color(157, 208, 242));
+                            }
+                        }
+                        break;
+                    case CaptureBoxMode.Active:
+                        {
+                            m_captureBox.UpdateBotGuardTargets();
+
+                            m_captureBoxSpawnTime += t;
+                            if (m_captureBoxSpawnTime > 36000f)
+                            {
+                                m_captureBox.ShareBonus();
+                                m_captureBoxMode = CaptureBoxMode.Despawning;
+                                m_captureBox.Hide();
+                                m_captureBoxSpawnTime = 0;
+                            }
+                        }
+                        break;
+                    case CaptureBoxMode.Despawning:
+                        {
+                            m_captureBoxSpawnTime += t;
+                            int blink = (int)(m_captureBoxSpawnTime / 500f);
+                            if (blink % 2 == 0)
+                            {
+                                m_captureBox.Hide();
+                            }
+                            else
+                            {
+                                m_captureBox.Show();
+                            }
+
+                            if (m_captureBoxSpawnTime > 2000f)
+                            {
+                                m_captureBoxMode = CaptureBoxMode.Hiding;
+                                m_captureBox.Hide();
+                                m_captureBox.ClearOwner();
+                                m_captureBoxSpawnTime = 0;
+                            }
+                        }
+                        break;
+                }
+            }
+
+            // This mode doesn't support players without a user. So bots without a user can't capture the box.
+            // Bot player instances remains when a bot user is replaced/removed in the lobby.
+            // Remove bots that have been replaced/kicked in the lobby.
+            // But only remove bots that have had users since before, or it can be other type of bots in the map from other scripts.
+            foreach (IPlayer player in Game.GetPlayers())
+            {
+                if (player.UserIdentifier == 0 && m_playersWithUsers.Contains(player.UniqueID))
+                {
+                    // remove this player.
+                    player.Remove();
+                }
+            }
+
+            int activeUsers = 0;
+            int activeBots = 0;
+            foreach (IUser user in Game.GetActiveUsers())
+            {
+                if (user.IsSpectator) { continue; }
+
+                UserRespawn userRespawn = null;
+                if (!m_userRespawn.TryGetValue(user.UserIdentifier, out userRespawn))
+                {
+                    // skip users with no respawn initialized, that is not joined in in the beginning of the game.
+                    continue;
+                    //    userRespawn = new UserRespawn(user.UserIdentifier);
+                    //    m_userRespawn.Add(user.UserIdentifier, userRespawn);
+                }
+
+                if (user.IsUser) { activeUsers++; }
+                if (user.IsBot) { activeBots++; }
+
+                IPlayer plr = user.GetPlayer();
+                if (plr == null || plr.IsDead)
+                {
+                    // player is dead. Progress towards respawn
+                    if (!userRespawn.DeathInitDone)
+                    {
+                        userRespawn.DeathInitDone = true;
+                        userRespawn.LastRespawnMessageTimeRemaining = 9999;
+                        userRespawn.QuickRespawn = (userRespawn.TotalSpawns > 0 && (Game.TotalElapsedGameTime - userRespawn.SpawnTimestamp) < 2000f);
+                        userRespawn.LastRespawnMessageTimeRemaining = (int)(userRespawn.TotalTime / 1000f);
+
+                        if (!user.IsBot)
+                        {
+                            Events.UpdateCallback.Start(x =>
+                            {
+                                if (userRespawn.QuickRespawn)
+                                {
+                                    Game.ShowChatMessage("Bad luck! You will respawn in 2 seconds.", SpawnMessageColor, user.UserIdentifier);
+                                }
+                                else
+                                {
+                                    Game.ShowChatMessage(string.Format("You're dead! You will respawn in {0} seconds.", userRespawn.LastRespawnMessageTimeRemaining), SpawnMessageColor, user.UserIdentifier);
+                                }
+                            }, 400, 1);
+                        }
+                    }
+
+                    userRespawn.RespawnTimer += t;
+                    // show a message before you will spawn.
+                    // You will spawn in 10 seconds... 6 seconds... 4 seconds... 2 seconds...
+                    if (!userRespawn.QuickRespawn)
+                    {
+                        int secLeft = (int)Math.Ceiling((userRespawn.TotalTime - userRespawn.RespawnTimer) / 1000f);
+                        if (secLeft < userRespawn.LastRespawnMessageTimeRemaining)
+                        {
+                            userRespawn.LastRespawnMessageTimeRemaining = secLeft;
+                            if (secLeft == 10 || secLeft == 8 || secLeft == 6 || secLeft == 4 || secLeft == 2 || secLeft == 1)
+                            {
+                                string msg = string.Format("You will spawn in {0} {1}", secLeft, (secLeft > 1 ? "seconds..." : "second..."));
+                                Game.ShowChatMessage(msg, SpawnMessageColor, user.UserIdentifier);
+                            }
+                        }
+                    }
+                    if (userRespawn.RespawnTimer >= userRespawn.TotalTime || userRespawn.QuickRespawn && userRespawn.RespawnTimer >= 2000f)
+                    {
+                        // spawn user!
+                        userRespawn.RespawnTimer = 0f;
+                        userRespawn.DeathInitDone = false;
+                        userRespawn.SpawnTimestamp = Game.TotalElapsedGameTime;
+                        userRespawn.TotalSpawns++;
+                        if (!userRespawn.QuickRespawn)
+                        {
+                            // increase next death respawn time.
+                            userRespawn.TotalTime = Math.Min(RESPAWN_MAX_TIME, userRespawn.TotalTime + RESPAWN_INCREASE_TIME);
+                        }
+                        userRespawn.QuickRespawn = false;
+
+                        Vector2 spawnPosition = GetRandomSpawnPosition(m_captureBox.Area) + new Vector2(0f, 8f);
+                        IPlayer newPlr = Game.CreatePlayer(spawnPosition);
+                        newPlr.SetTeam(user.GetTeam());
+                        newPlr.SetProfile(user.GetProfile());
+                        newPlr.SetUser(user);
+
+                        if (user.IsBot)
+                        {
+                            BotBehavior bb = new BotBehavior(true, user.BotPredefinedAIType);
+                            newPlr.SetBotBehavior(bb);
+                        }
+                        else
+                        {
+                            Game.ShowChatMessage("You have spawned!", SpawnMessageColor, user.UserIdentifier);
+                        }
+
+                        Game.PlaySound("GetAmmoSmall", newPlr.GetWorldPosition());
+
+                        if (plr != null)
+                        {
+                            plr.Remove();
+                        }
+                    }
+                }
+                else
+                {
+                    userRespawn.RespawnTimer = 0f;
+                }
+            }
+
+            if (activeUsers <= 0 || activeUsers <= 1 && activeBots <= 0)
+            {
+                // No real users
+                // Only 1 real user with no bots
+                // Revert back to ordinary VS rules so it can trigger GameOver when a new user joins in, allowing the game to restart.
+                Game.AutoVictoryConditionEnabled = true;
+            }
+
+        }
+
+        /// <summary>
+        /// Updates the m_playersWithUsers hashset with players having a user identifier.
+        /// </summary>
+        private void UpdatePlayersWithUsers()
+        {
+            foreach (IPlayer plr in Game.GetPlayers())
+            {
+                if (plr.UserIdentifier != 0)
+                {
+                    m_playersWithUsers.Add(plr.UniqueID);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns a spawn position to be used for players or the capture box. 
+        /// A spawn position is on a PathNode 
+        /// </summary>
+        public static Vector2 GetRandomSpawnPosition(Area captureBoxArea)
+        {
+            // Primary: Use a random valid ground PathNode
+            IObjectPathNode[] pathNodes = Game.GetObjects<IObjectPathNode>();
+            if (pathNodes != null && pathNodes.Length > 0)
+            {
+                pathNodes = pathNodes.Where(x => (x.GetPathNodeType() == PathNodeType.Ground || x.GetPathNodeType() == PathNodeType.Platform) && x.GetNodeEnabled() && x.GetFollowObject() == null && !x.GetNodeBlockedByPathZone()).ToArray();
+                if (pathNodes.Length > 0)
+                {
+                    // some potential valid nodes left.
+                    // Remove nodes close to other alive players and the active capture-box.
+                    List<Area> areasToAvoid = new List<Area>(Game.GetPlayers().Where(x => !x.IsDead).Select(x => { Area a = x.GetAABB(); a.Grow(24f); return a; }));
+                    captureBoxArea.Grow(32f);
+                    areasToAvoid.Add(captureBoxArea);
+
+                    // additional areas to avoid:
+                    // On top of mines, C4, grenades, molotovs, barrel wrecks, explosive barrels.
+                    IObject[] objectsToAvoid = Game.GetObjectsByName(new string[] { "WpnC4Thrown", "WpnMineThrown", "WpnGrenadesThrown", "BarrelExplosive", "BarrelWreck" });
+                    areasToAvoid.AddRange(objectsToAvoid.Select(x => { Area a = x.GetAABB(); a.Grow(24f); return a; }));
+
+                    IObjectPathNode[] freePathNodes = pathNodes.Where(x => !areasToAvoid.Any(y => y.Contains(x.GetWorldPosition()))).ToArray();
+                    if (freePathNodes.Length == 0)
+                    {
+                        // not enough free path nodes around, use occupied PathNodes anyway.
+                        freePathNodes = pathNodes;
+                    }
+                    // final check: Must be at least one enabled pathnodeconnection for this to be a valid one. Also remove nodes connected by portals as they tend to be clipped inside walls.
+                    IObjectPathNode[] freePathNodesWithValidConnections = freePathNodes.Where(x =>
+                    {
+                        IObjectPathNodeConnection[] conns = x.GetPathNodeConnections();
+                        if (conns == null || conns.Length == 0)
+                        {
+                            return false;
+                        }
+                        if (!conns.Any(y => y.GetConnectionDirection() == PathNodeConnectionDirection.TwoWay && y.GetConnectionEnabled()))
+                        {
+                            return false;
+                        }
+                        if (conns.Any(y => y.GetConnectionType() == PathNodeConnectionType.Portal))
+                        {
+                            return false;
+                        }
+                        return true;
+                    }).ToArray();
+
+                    if (freePathNodesWithValidConnections.Length == 0)
+                    {
+                        freePathNodesWithValidConnections = freePathNodes;
+                    }
+
+                    // select one random PathNode from freePathNodesWithValidConnections.
+                    return freePathNodesWithValidConnections[Rnd.Next(0, freePathNodesWithValidConnections.Length)].GetWorldPosition();
+                }
+            }
+
+            // Backup: Use a random SpawnPlayer position. This is not optimal and can make some players spawn in death traps. But it's a backup anyway!
+            IObject[] spawns = Game.GetObjectsByName("SpawnPlayer");
+            Vector2 spawnPosition = (spawns != null && spawns.Length > 0 ? spawns[Rnd.Next(0, spawns.Length)].GetWorldPosition() : Vector2.Zero);
+            return spawnPosition;
+        }
+
+        public class CaptureIdentity
+        {
+
+            public const float CAPTURE_TIME = 2400f; // arbitary time in ms. This feels OK
+            public const int CAPTURE_SCORE = 60; // arbitary score to reach in order to win.
+
+            /// <summary>
+            /// The capture identifier, unique. A combination of Team and UserIdentifier(IndependentTeam).
+            /// </summary>
+            public long Key { get; set; }
+
+            /// <summary>
+            /// Team
+            /// </summary>
+            public PlayerTeam Team { get; set; }
+
+            /// <summary>
+            /// If Team is independent, this will be the UserIdentifier of that user.
+            /// </summary>
+            public int IndependentUserIdentifier { get; set; }
+
+            /// <summary>
+            /// Score from ticks while owning the box.
+            /// </summary>
+            public int ScoreTicks { get; set; }
+
+            /// <summary>
+            /// Bonus score for contesting the box.
+            /// </summary>
+            public int BonusScoreContest { get; set; }
+
+            /// <summary>
+            /// Current capture time.
+            /// </summary>
+            public float CaptureTime { get; set; }
+
+            /// <summary>
+            /// Gets the total time the capture box has been contested.
+            /// </summary>
+            public float TotalContestTime { get; set; }
+
+            /// <summary>
+            /// Gets the total score (returns ScoreTicks + BonusScoreContest).
+            /// </summary>
+            public int TotalScore { get { return ScoreTicks + BonusScoreContest; } }
+
+            /// <summary>
+            /// Capture progress.
+            /// </summary>
+            public float CaptureProgress { get { return (CaptureTime / CAPTURE_TIME); } }
+
+            /// <summary>
+            /// Indicates if this identity is inside the capture box.
+            /// </summary>
+            public bool InsideBox { get; set; }
+
+            private static int m_captureIndex = 0;
+            /// <summary>
+            /// Gets the index of this capture indentity.
+            /// </summary>
+            public int Index { get; private set; }
+
+            /// <summary>
+            /// Gets the score sorting key. In case of the same score, the index will determine sub-order (where lower indexes will be first!).
+            /// </summary>
+            public int TotalScoreSortKey { get { return ((TotalScore << 16) + (Int16.MaxValue - Index)); } }
+
+            public CaptureIdentity(long key, PlayerTeam team, int userIdentifier)
+            {
+                Key = key;
+                Team = team;
+                IndependentUserIdentifier = userIdentifier;
+                ScoreTicks = 0;
+                CaptureTime = 0f;
+                BonusScoreContest = 0;
+                InsideBox = false;
+                Index = m_captureIndex;
+                m_captureIndex++;
+            }
+
+            private string m_displayName = "";
+            /// <summary>
+            /// Gets the display name for this capture identity
+            /// </summary>
+            public string GetDisplayName()
+            {
+                if (Team != PlayerTeam.Independent)
+                {
+                    switch (Team)
+                    {
+                        case PlayerTeam.Team1: return "Team 1";
+                        case PlayerTeam.Team2: return "Team 2";
+                        case PlayerTeam.Team3: return "Team 3";
+                        case PlayerTeam.Team4: return "Team 4";
+                    }
+                    return Team.ToString(); // failsafe, should never reach here.
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(m_displayName))
+                    {
+                        IUser user = Game.GetActiveUser(IndependentUserIdentifier);
+                        if (user == null) // failsafe, user might leave the game
+                            m_displayName = "User " + IndependentUserIdentifier.ToString();
+                        else
+                            m_displayName = user.Name;
+                    }
+                    return m_displayName; // cache the name, in case the user leaves after displaying it for the first time.
+                }
+            }
+
+            /// <summary>
+            /// Returns the current score as a text with bonus info (if any).
+            /// </summary>
+            /// <returns></returns>
+            public string GetScoreText()
+            {
+                if (BonusScoreContest > 0)
+                {
+                    return string.Format("{0} ({1} + Contest Bonus {2})", TotalScore, ScoreTicks, BonusScoreContest);
+                }
+                else
+                {
+                    return TotalScore.ToString();
+                }
+            }
+
+            /// <summary>
+            /// Gets all active users belonging to this capture identity.
+            /// </summary>
+            public IUser[] GetUsers()
+            {
+                if (Team != PlayerTeam.Independent)
+                {
+                    return Game.GetActiveUsers().Where(x => x.GetTeam() == Team).ToArray();
+                }
+                else
+                {
+                    IUser user = Game.GetActiveUser(IndependentUserIdentifier);
+                    if (user == null)
+                        return new IUser[0];
+
+                    return new IUser[1] { user };
+                }
+            }
+
+            /// <summary>
+            /// Gets all alive players belonging to this capture identity.
+            /// </summary>
+            public IPlayer[] GetAlivePlayers()
+            {
+                return GetUsers().Select(x => x.GetPlayer()).Where(x => x != null && !x.IsRemoved && !x.IsDead).ToArray();
+            }
+
+        }
+
+        public class CaptureBox
+        {
+            private HashSet<int> m_overlappingUsers = new HashSet<int>();
+
+            private bool m_scoresUpdated = false;
+            private IObject[] m_wallParts = null;
+            private IObjectWeldJoint m_wallWeldJoint = null;
+            private Area m_wallArea;
+            private IObjectText[] m_texts = null;
+            private IObjectText[] m_textShadows = null;
+            private float m_scoreTickTime = 0f;
+            private float m_timeWithoutOwner = 0f;
+
+            /// <summary>
+            /// Gets the current area of the capture box.
+            /// </summary>
+            public Area Area { get { return m_wallArea; } }
+
+            /// <summary>
+            /// Gets the current owner of this box.
+            /// </summary>
+            public CaptureIdentity CurrentOwner { get; private set; }
+
+            /// <summary>
+            /// Gets the winning capture identity of this box.
+            /// </summary>
+            public CaptureIdentity WinningCaptureIdentity { get; private set; }
+
+            /// <summary>
+            /// Gets if the box is currently hiding.
+            /// </summary>
+            public bool Hiding { get; private set; }
+
+            /// <summary>
+            /// Gets if the box is currently showing (return !Hiding)
+            /// </summary>
+            public bool Showing { get { return !Hiding; } }
+
+            /// <summary>
+            /// Creates the capture box you must be inside.
+            /// </summary>
+            /// <param name="width">Width, in 8xWidth world units. Minimum allowed 2.</param>
+            /// <param name="height">Height, in 8xHeight world units. Minimum allowed 2.</param>
+            public CaptureBox(int width, int height)
+            {
+                if (width < 2)
+                    width = 2;
+                if (height < 2)
+                    height = 2;
+
+                // Left wall, will also be used to read some basic properties from DuctWall00.
+                IObject wallL = Game.CreateObject("DuctWall00A");
+
+                // Init positions
+                Vector2 boxOrigin = Vector2.Zero;
+
+                float l = boxOrigin.X - (float)width * 8f * 0.5f;
+                float r = boxOrigin.X + (float)width * 8f * 0.5f;
+                float t = boxOrigin.Y + (float)height * 8f * 0.5f;
+                float b = boxOrigin.Y - (float)height * 8f * 0.5f;
+
+                Point baseSize = wallL.GetBaseSize();
+                // Adjust wall positions as origin for each IObject is in the center of the tile.
+                l += baseSize.X * 0.5f;
+                r -= baseSize.X * 0.5f;
+                t -= baseSize.Y * 0.5f;
+                b += baseSize.Y * 0.5f;
+                // this function count in 8x8 tiles in this function, this will be a size multiplier to adjust things with.
+                int sizeMultiplier = 8 / baseSize.X;
+
+                // DuctWall00A   |
+                // DuctWall00B   /
+
+                // create all walls and position things
+                wallL.SetWorldPosition(new Vector2(l, t - baseSize.Y));
+                wallL.SetSizeFactor(new Point(1, (height - 1) * sizeMultiplier));
+                IObject wallR = Game.CreateObject("DuctWall00A", new Vector2(r, b + baseSize.Y), (float)Math.PI);
+                wallR.SetSizeFactor(new Point(1, (height - 1) * sizeMultiplier));
+
+                IObject wallT = Game.CreateObject("DuctWall00A", new Vector2(l + baseSize.X, t), (float)Math.PI * 0.5f);
+                wallT.SetSizeFactor(new Point(1, (width - 1) * sizeMultiplier));
+                IObject wallB = Game.CreateObject("DuctWall00A", new Vector2(r - baseSize.X, b), (float)Math.PI * 1.5f);
+                wallB.SetSizeFactor(new Point(1, (width - 1) * sizeMultiplier));
+
+                // create all corners and position things
+                IObject cornerTL = Game.CreateObject("DuctWall00B", new Vector2(l, t), 0f);
+                IObject cornerTR = Game.CreateObject("DuctWall00B", new Vector2(r, t), (float)Math.PI * 1.5f);
+                IObject cornerBR = Game.CreateObject("DuctWall00B", new Vector2(r, b), (float)Math.PI);
+                IObject cornerBL = Game.CreateObject("DuctWall00B", new Vector2(l, b), (float)Math.PI * 0.5f);
+
+                // change collision and color
+                CollisionFilter collisionFilter = new CollisionFilter();
+                m_wallParts = new IObject[] { wallL, wallR, wallT, wallB, cornerTL, cornerTR, cornerBR, cornerBL };
+                foreach (IObject wall in m_wallParts)
+                {
+                    wall.SetColor1("MetalCyan");
+                    wall.SetCollisionFilter(collisionFilter);
+                }
+
+                // create weld-joint to keep the walls together (which will simplify moving the box).
+                m_wallWeldJoint = (IObjectWeldJoint)Game.CreateObject("WeldJoint", boxOrigin);
+                m_wallWeldJoint.SetTargetObjects(m_wallParts);
+
+                m_wallArea = new Area(t, l, b, r);
+
+                // create texts (3 of them, for 3 rows in total)
+
+
+                t += 6f;
+
+                t -= 0.6f;
+                l += 0.6f;
+                m_textShadows = new IObjectText[3];
+                m_textShadows[0] = (IObjectText)Game.CreateObject("Text", new Vector2(l - 2f, t));
+                m_textShadows[1] = (IObjectText)Game.CreateObject("Text", new Vector2(l - 2f, t + 6f));
+                m_textShadows[2] = (IObjectText)Game.CreateObject("Text", new Vector2(l - 2f, t + 12f));
+
+                t += 0.6f;
+                l -= 0.6f;
+                m_texts = new IObjectText[3];
+                m_texts[0] = (IObjectText)Game.CreateObject("Text", new Vector2(l - 2f, t));
+                m_texts[1] = (IObjectText)Game.CreateObject("Text", new Vector2(l - 2f, t + 6f));
+                m_texts[2] = (IObjectText)Game.CreateObject("Text", new Vector2(l - 2f, t + 12f));
+
+                foreach (IObjectText text in m_texts)
+                {
+                    text.SetTextScale(0.75f);
+                    text.SetTextAlignment(TextAlignment.Left);
+                }
+                foreach (IObjectText text in m_textShadows)
+                {
+                    text.SetTextScale(0.75f);
+                    text.SetTextAlignment(TextAlignment.Left);
+                    text.SetTextColor(Color.Black);
+                }
+
+            }
+
+            public void SetTexts(string topRow, string middleRow, string bottomRow)
+            {
+                m_texts[0].SetText(bottomRow);
+                m_texts[1].SetText(middleRow);
+                m_texts[2].SetText(topRow);
+                m_textShadows[0].SetText(bottomRow);
+                m_textShadows[1].SetText(middleRow);
+                m_textShadows[2].SetText(topRow);
+            }
+
+            public void SetTexts(string middleRow, string bottomRow)
+            {
+                m_texts[0].SetText(bottomRow);
+                m_texts[1].SetText(middleRow);
+                m_texts[2].SetText("");
+                m_textShadows[0].SetText(bottomRow);
+                m_textShadows[1].SetText(middleRow);
+                m_textShadows[2].SetText("");
+            }
+
+            public void SetTexts(string bottomRow)
+            {
+                m_texts[0].SetText(bottomRow);
+                m_texts[1].SetText("");
+                m_texts[2].SetText("");
+                m_textShadows[0].SetText(bottomRow);
+                m_textShadows[1].SetText("");
+                m_textShadows[2].SetText("");
+            }
+
+            public void SetTextColors(Color topRow, Color middleRow, Color bottomRow)
+            {
+                m_texts[0].SetTextColor(bottomRow);
+                m_texts[1].SetTextColor(middleRow);
+                m_texts[2].SetTextColor(topRow);
+            }
+
+            /// <summary>
+            /// Clears the current owner.
+            /// </summary>
+            public void ClearOwner()
+            {
+                CurrentOwner = null;
+                m_timeWithoutOwner = 0f;
+            }
+
+            private Dictionary<long, CaptureIdentity> m_captureIdentities = new Dictionary<long, CaptureIdentity>();
+            /// <summary>
+            /// Returns the correct CaptureIdentity instance for the specific userIdentifier.
+            /// </summary>
+            public CaptureIdentity GetCaptureIdentity(int userIdentifier)
+            {
+                IUser user = Game.GetActiveUser(userIdentifier);
+                if (user == null) return null;
+                IPlayer plr = user.GetPlayer();
+                if (plr == null) return null;
+                PlayerTeam team = plr.GetTeam();
+                long key = (team != PlayerTeam.Independent ? (long)team << 32 : user.UserIdentifier);
+                CaptureIdentity ci = null;
+                if (!m_captureIdentities.TryGetValue(key, out ci))
+                {
+                    ci = new CaptureIdentity(key, team, (team == PlayerTeam.Independent ? user.UserIdentifier : 0));
+                    m_captureIdentities.Add(key, ci);
+                }
+                return ci;
+            }
+
+            /// <summary>
+            /// Removes a capture identity if the user was an independent user.
+            /// </summary>
+            public void RemoveCaptureIdentity(int userIdentifier)
+            {
+                m_captureIdentities.Remove(userIdentifier);
+            }
+
+            /// <summary>
+            /// Updates the capture-box
+            /// </summary>
+            /// <param name="t">ms</param>
+            public void Update(float t, bool capturingAllowed)
+            {
+                Area areaSmaller = this.Area.Copy();
+                areaSmaller.Grow(-4f);
+
+                List<int> availableUsers = new List<int>();
+                foreach (IUser user in Game.GetActiveUsers())
+                {
+                    if (user.IsSpectator) { continue; }
+                    availableUsers.Add(user.UserIdentifier);
+                    // Progress capture score...
+                    IPlayer plr = user.GetPlayer();
+
+                    if (capturingAllowed && plr != null && !plr.IsDead)
+                    {
+                        Area plrAABB = plr.GetAABB();
+                        if (!m_overlappingUsers.Contains(user.UserIdentifier))
+                        {
+                            if (areaSmaller.Intersects(plrAABB))
+                            {
+                                if (m_overlappingUsers.Add(user.UserIdentifier))
+                                {
+                                    // User started overlapping...
+                                    Game.WriteToConsole(string.Format("User {0} started overlapping", user.UserIdentifier));
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (!Area.Intersects(plrAABB))
+                            {
+                                if (m_overlappingUsers.Remove(user.UserIdentifier))
+                                {
+                                    // User stopped overlapping...
+                                    Game.WriteToConsole(string.Format("User {0} stopped overlapping", user.UserIdentifier));
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (m_overlappingUsers.Remove(user.UserIdentifier))
+                        {
+                            // User stopped overlapping...
+                            Game.WriteToConsole(string.Format("User {0} stopped overlapping", user.UserIdentifier));
+                        }
+                    }
+                }
+                if (m_overlappingUsers.Count > 0)
+                {
+                    List<int> removedUsers = m_overlappingUsers.Except(availableUsers).ToList();
+                    if (removedUsers.Count > 0)
+                    {
+                        // removedUsers now contains all users that have left the game but have some sort of progress made in the map. Clean it up here.
+                        removedUsers.ForEach(userIdentifier => RemoveCaptureIdentity(userIdentifier));
+                        m_overlappingUsers.ExceptWith(removedUsers);
+                    }
+                }
+
+                // All individual users overlapping the zone is identified.
+                List<CaptureIdentity> capturesInside = new List<CaptureIdentity>(m_overlappingUsers.Select(x => GetCaptureIdentity(x)).Distinct());
+                List<CaptureIdentity> capturesOutside = new List<CaptureIdentity>(m_captureIdentities.Values.Where(x => !capturesInside.Contains(x)));
+
+                capturesInside.ForEach(x => x.InsideBox = true && capturingAllowed);
+                capturesOutside.ForEach(x => x.InsideBox = false);
+
+                // reduce capturetime for everyone outside the box.
+                foreach (CaptureIdentity ci in capturesOutside)
+                {
+                    if (ci.CaptureTime > 0f) { ci.CaptureTime = Math.Max(0f, ci.CaptureTime - t); }
+                }
+
+                List<string> texts = new List<string>();
+
+                if (CurrentOwner != null && capturingAllowed)
+                {
+
+                    // score will tick according to the following rules:
+                    // 1 score each 1.0 seconds for the owner.
+                    // +0.5 second penalty if the box is contested.
+                    // +0.5 second penalty if you're outside the box.
+                    // no score increase while you're dead. Avoids cheese tactics where you want to kill yourself to reset your health... or at least you will get a penalty for doing so!
+
+                    // Tick score for current owner
+                    bool tickScore = false;
+                    if (CurrentOwner.GetAlivePlayers().Length > 0)
+                    {
+                        m_scoreTickTime += t;
+                        bool ownerInsideBox = CurrentOwner.InsideBox;
+                        bool boxContested = capturesInside.Where(x => x != CurrentOwner).Any();
+
+                        float timeToScore = 1000f;
+                        if (!ownerInsideBox)
+                            timeToScore += 500f;
+                        if (boxContested)
+                            timeToScore += 500f;
+
+                        if (m_scoreTickTime > timeToScore)
+                        {
+                            m_scoreTickTime -= timeToScore;
+                            tickScore = true;
+                        }
+                    }
+                    else
+                    {
+                        // ... No alive owner. Reset score ticks.
+                        m_scoreTickTime = 0f;
+                    }
+
+                    if (tickScore)
+                    {
+                        if (CurrentOwner.TotalScore < CaptureIdentity.CAPTURE_SCORE)
+                        {
+                            CurrentOwner.ScoreTicks += 1;
+                        }
+                    }
+                    CurrentOwner.CaptureTime = CaptureIdentity.CAPTURE_TIME;
+
+                    texts.Add(string.Format("{0} score: {1} / {2}", CurrentOwner.GetDisplayName(), CurrentOwner.TotalScore, CaptureIdentity.CAPTURE_SCORE));
+                    if (CurrentOwner.TotalScore >= CaptureIdentity.CAPTURE_SCORE)
+                    {
+                        // Potential winner! Can only win as long as the area is not contested and the owner is inside the area!
+                        if (capturesInside.Count == 1 && capturesInside[0] == CurrentOwner)
+                        {
+                            // HURRAY! Victory!
+                            if (WinningCaptureIdentity == null)
+                            {
+                                WinningCaptureIdentity = CurrentOwner;
+                            }
+                            if (!Game.IsGameOver)
+                            {
+                                // Show a chat message that someone reached a score of 60 and that the game is now over.
+                                Game.ShowChatMessage(string.Format("{0} reached 60 points and cleared the area!", CurrentOwner.GetDisplayName()), new Color(247, 254, 160));
+                                Game.SetGameOver(string.Format("{0} wins!", CurrentOwner.GetDisplayName()));
+                            }
+                        }
+                        else if (capturesInside.Count > 0)
+                        {
+                            // Contested. Message displayed down below.
+                            texts.Add(string.Format("{0} needs to clear the box to win!", CurrentOwner.GetDisplayName()));
+                        }
+                        else
+                        {
+                            // Prompt the owner to reach the box to win
+                            texts.Add(string.Format("{0} needs to reach the area to win!", CurrentOwner.GetDisplayName()));
+                        }
+                    }
+                }
+                else
+                {
+                    m_scoreTickTime = 0f;
+                    if (capturingAllowed)
+                    {
+                        m_timeWithoutOwner += t;
+                    }
+                }
+
+                if (!capturingAllowed)
+                {
+                    texts.Add("Contest this area to win!");
+                }
+                else if (capturesInside.Count == 1)
+                {
+                    // Progress capture progress for this team/user
+                    CaptureIdentity ci = capturesInside[0];
+                    ci.CaptureTime += t;
+                    if (m_timeWithoutOwner > 10000f)
+                    {
+                        // some time without an owner - let's score faster - intensifying the gameplay!
+                        ci.CaptureTime += t;
+                    }
+                    if (ci.CaptureTime >= CaptureIdentity.CAPTURE_TIME)
+                    {
+                        ci.CaptureTime = CaptureIdentity.CAPTURE_TIME;
+                        // failsafe:
+                        if (CurrentOwner != ci)
+                        {
+                            CurrentOwner = ci;
+                            Game.PlaySound("TutorialSuccess1", Vector2.Zero);
+                        }
+                    }
+
+                    if (CurrentOwner != ci)
+                    {
+                        texts.Add(string.Format("{0} capturing {1} %", ci.GetDisplayName(), Math.Round(ci.CaptureProgress * 100f, 0)));
+                    }
+                }
+                else if (capturesInside.Count > 1)
+                {
+                    // When two or more capture identities are inside the box progress can't be made... waiting for the fight to be solved!
+                    // But also reward those brave enough to fight inside the box by giving them +1 score each 5 seconds of contest time. 
+                    // This also rewards the one currently owning the box to fight for it but put them at risk too!
+                    texts.Add("Area contested");
+                    foreach (CaptureIdentity ci in capturesInside)
+                    {
+                        ci.TotalContestTime += t;
+                    }
+                }
+                else
+                {
+                    // None inside atm.
+                    if (CurrentOwner == null)
+                    {
+                        texts.Add("Contest this area to win!");
+                    }
+                    else
+                    {
+
+                    }
+                }
+
+
+
+
+                // Show text above the texturebox
+                if (!Game.IsGameOver)
+                {
+                    switch (texts.Count)
+                    {
+                        case 0: SetTexts(""); break;
+                        case 1: SetTexts(texts[0]); break;
+                        case 2: SetTexts(texts[1], texts[0]); break;
+                        case 3: SetTexts(texts[2], texts[1], texts[0]); break;
+                    }
+                }
+                else
+                {
+                    // Show text for winning user!
+                    if (!m_scoresUpdated)
+                    {
+                        // Share bonus points (if any):
+                        ShareBonus();
+
+                        List<CaptureIdentity> ciPlaces = m_captureIdentities.Values.Where(x => x.GetUsers().Length > 0).ToList();
+                        ciPlaces.Sort((x, y) => { return y.TotalScoreSortKey - x.TotalScoreSortKey; });
+
+                        if (WinningCaptureIdentity == null)
+                        {
+                            WinningCaptureIdentity = (ciPlaces.Count > 0 ? ciPlaces[0] : null);
+                        }
+                        if (WinningCaptureIdentity != null)
+                        {
+                            IUser[] scoringUsers = WinningCaptureIdentity.GetUsers();
+                            foreach (IUser user in scoringUsers)
+                            {
+                                user.IncreaseScore();
+                            }
+
+                            string winMsg = string.Format("{0} wins!", WinningCaptureIdentity.GetDisplayName());
+
+                            // chat lines displaying winner and individual scores.
+                            List<string> winChatLines = new List<string>();
+                            winChatLines.Add(winMsg);
+                            foreach (CaptureIdentity ci in ciPlaces)
+                            {
+                                winChatLines.Add(string.Format("{0}: score {1}", ci.GetDisplayName(), ci.GetScoreText()));
+                            }
+                            Events.UpdateCallback.Start((float d) =>
+                            {
+                                Game.SetGameOver(winMsg);
+                                // Show each line separate in chat!
+                                foreach (string s in winChatLines)
+                                {
+                                    Game.ShowChatMessage(s, new Color(247, 254, 160));
+                                }
+                            }, 1500, 1);
+
+                        }
+                        else
+                        {
+                            Events.UpdateCallback.Start((float d) =>
+                            {
+                                Game.SetGameOver("NO WINNER");
+                            }, 1500, 1);
+                        }
+                        m_scoresUpdated = true;
+                    }
+                    SetTexts("");
+                }
+            }
+
+            /// <summary>
+            /// Shares any accumulated contest bonus points, announce it in the chat and resets it for the next random box position.
+            /// </summary>
+            public void ShareBonus()
+            {
+                // Sort over TotalContestTime with an extra random ms to randomize order for those with the same TotalContestTime (unlikely it will happen, but might happen).
+                List<CaptureIdentity> ciPlaces = m_captureIdentities.Values.Where(x => x.TotalContestTime > 500f && x.GetUsers().Length > 0).OrderByDescending(x => x.TotalContestTime + (float)Rnd.NextDouble()).ToList();
+
+                // Bonus points: The top 4 contesting the box the longest time gain bonus score matching the TotalContestTime according to the following:
+                // Place   Base Score    Additional Score based on TotalContestTime
+                // 1        1               CInt(TotalContestTime / 4000)   (1 contest bonus point per 4 seconds of contest time)
+                // 2        0               CInt(TotalContestTime / 5000)   (1 contest bonus point per 5 seconds of contest time)
+                // 3        0               CInt(TotalContestTime / 6000)   (1 contest bonus point per 6 seconds of contest time)
+                // 4        0               CInt(TotalContestTIme / 8000)   (1 contest bonus point per 8 seconds of contest time)
+
+                // This bonus points distribution works better for many players (especially for individual players in a free-for-all). Fighting over the box should always be encouraged, even if you die!
+
+                // First place
+                if (ciPlaces.Count > 0)
+                {
+                    int bonusPoints = 1 + (int)(ciPlaces[0].TotalContestTime / 4000f);
+                    ciPlaces[0].BonusScoreContest += bonusPoints;
+                    Game.ShowChatMessage(string.Format("{0}: Contest bonus points +{1}", ciPlaces[0].GetDisplayName(), bonusPoints), new Color(181, 230, 29));
+                    // play a sound
+                    Game.PlaySound("TutorialSuccess2", GetBoxPosition());
+                }
+
+                // Second place
+                if (ciPlaces.Count > 1)
+                {
+                    int bonusPoints = (int)(ciPlaces[1].TotalContestTime / 5000f);
+                    if (bonusPoints > 0)
+                    {
+                        ciPlaces[1].BonusScoreContest += bonusPoints;
+                        Game.ShowChatMessage(string.Format("{0}: Contest bonus points +{1}", ciPlaces[1].GetDisplayName(), bonusPoints), new Color(181, 230, 29));
+                    }
+                }
+
+                // Third place
+                if (ciPlaces.Count > 2)
+                {
+                    int bonusPoints = (int)(ciPlaces[2].TotalContestTime / 6000f);
+                    if (bonusPoints > 0)
+                    {
+                        ciPlaces[2].BonusScoreContest += bonusPoints;
+                        Game.ShowChatMessage(string.Format("{0}: Contest bonus points +{1}", ciPlaces[2].GetDisplayName(), bonusPoints), new Color(181, 230, 29));
+                    }
+                }
+
+                // Fourth place
+                if (ciPlaces.Count > 3)
+                {
+                    int bonusPoints = (int)(ciPlaces[3].TotalContestTime / 8000f);
+                    if (bonusPoints > 0)
+                    {
+                        ciPlaces[3].BonusScoreContest += bonusPoints;
+                        Game.ShowChatMessage(string.Format("{0}: Contest bonus points +{1}", ciPlaces[3].GetDisplayName(), bonusPoints), new Color(181, 230, 29));
+                    }
+                }
+
+                // reset total contest time
+                foreach (CaptureIdentity ci in m_captureIdentities.Values)
+                {
+                    ci.TotalContestTime = 0f;
+                }
+
+                if (!Game.IsGameOver)
+                {
+                    CaptureIdentity topci = m_captureIdentities.Values.Where(x => x.TotalScore > 0 && x.GetUsers().Length > 0).OrderByDescending(x => x.TotalScoreSortKey).FirstOrDefault();
+                    if (topci != null)
+                    {
+                        Game.ShowChatMessage(string.Format("{0} is leading with {1} score", topci.GetDisplayName(), topci.TotalScore), new Color(221, 240, 39));
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Update bot guard targets to guard this capture box.
+            /// </summary>
+            public void UpdateBotGuardTargets()
+            {
+                foreach (IPlayer plr in Game.GetPlayers())
+                {
+                    if (plr.IsBot && plr.IsUser)
+                    {
+                        if (Showing)
+                        {
+                            IObject currentGuardTarget = plr.GetGuardTarget();
+                            if (currentGuardTarget == null || currentGuardTarget.UniqueID != m_wallWeldJoint.UniqueID)
+                            {
+                                // Set guard target to the weld joint.
+                                BotBehaviorSet bbs = plr.GetBotBehaviorSet();
+                                bbs.GuardRange = 24f + (float)Rnd.NextDouble() * 16f;
+                                bbs.ChaseRange = 42f + (float)Rnd.NextDouble() * 42f;
+                                bbs.SearchItemRange = 60f + (float)Rnd.NextDouble() * 60f;
+                                plr.SetBotBehaviorSet(bbs);
+                                plr.SetGuardTarget(m_wallWeldJoint);
+                            }
+                        }
+                        else
+                        {
+                            IObject currentGuardTarget = plr.GetGuardTarget();
+                            if (currentGuardTarget != null)
+                            {
+                                // Clear guard target
+                                BotBehaviorSet bbs = plr.GetBotBehaviorSet();
+                                bbs.GuardRange = 0f;
+                                bbs.ChaseRange = 0f;
+                                bbs.SearchItemRange = 0f;
+                                plr.SetBotBehaviorSet(bbs);
+                                plr.SetGuardTarget(null);
+                            }
+                        }
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Moves the box to a new position.
+            /// </summary>
+            public void SetBoxPosition(Vector2 boxPosition)
+            {
+                // Make sure the box stays inside the camera area
+                Area camArea = Game.GetCameraArea();
+                // Shrink camArea based on current capture box's size...
+                camArea.Grow(-m_wallArea.Width * 0.5f, -m_wallArea.Height * 0.5f);
+                // ...and some additional margins
+                camArea.Grow(-4f, -4f);
+                // check boxPosition so it's inside the shrunken camArea
+                if (boxPosition.X < camArea.Left)
+                    boxPosition.X = camArea.Left;
+                if (boxPosition.X > camArea.Right)
+                    boxPosition.X = camArea.Right;
+                if (boxPosition.Y > camArea.Top)
+                    boxPosition.Y = camArea.Top;
+                if (boxPosition.Y < camArea.Bottom)
+                    boxPosition.Y = camArea.Bottom;
+
+                if (Hiding)
+                {
+                    boxPosition += Vector2.UnitY * 10000f;
+                }
+                m_wallWeldJoint.SetWorldPosition(boxPosition, true);
+                Vector2 distance = boxPosition - m_wallArea.Center;
+                m_wallArea.Move(distance);
+
+                foreach (IObjectText text in m_texts)
+                {
+                    text.SetWorldPosition(text.GetWorldPosition() + distance);
+                }
+                foreach (IObjectText text in m_textShadows)
+                {
+                    text.SetWorldPosition(text.GetWorldPosition() + distance);
+                }
+            }
+
+            /// <summary>
+            /// Gets the box's world position.
+            /// </summary>
+            public Vector2 GetBoxPosition()
+            {
+                return m_wallWeldJoint.GetWorldPosition() - (Hiding ? Vector2.UnitY * 10000f : Vector2.Zero);
+            }
+
+            /// <summary>
+            /// Hides the box, just by moving it up 10000 units.
+            /// </summary>
+            public void Hide()
+            {
+                if (!Hiding)
+                {
+                    Vector2 pos = GetBoxPosition();
+                    Hiding = true;
+                    SetBoxPosition(pos);
+                }
+            }
+
+            /// <summary>
+            /// Hides the box, by restoring the movement from the hide sequence.
+            /// </summary>
+            public void Show()
+            {
+                if (Hiding)
+                {
+                    Vector2 pos = GetBoxPosition();
+                    Hiding = false;
+                    SetBoxPosition(pos);
+                }
+            }
+
+        }

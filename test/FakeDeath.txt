@@ -1,0 +1,95 @@
+//TODO - damn this whole script is kinda crappy. Gotta make it all different way some day
+public void OnStartup()
+{
+	Events.UpdateCallback.Start(OnUpdate);
+	foreach (IPlayer p in Game.GetPlayers())
+			if(!p.IsBot&&p.GetUser()!=null)
+		Thing._Things.Add(new Thing(p));
+}
+public void OnUpdate(float e)
+{
+	foreach (Thing t in Thing._Things)
+	{
+		if (t.Corpse == null || t.Corpse.IsRemoved)
+		{
+			if (t.Controller != null && !t.Controller.IsRemoved)
+				t.Controller.Remove();
+			Thing._Things.Remove(t);
+			return;
+		}
+		if (t.Controller != null && !t.Controller.IsRemoved && t.Corpse != null && !t.Corpse.IsRemoved)
+		{
+			t.Controller.SetHealth(t.Controller.GetHealth() - (t.Corpse.Statistics.TotalDamageTaken - t.LastHealth));
+			t.LastHealth = t.Corpse.Statistics.TotalDamageTaken;
+			if (t.Controller.GetHealth() <= 1)
+			{
+				t.Controller.Remove();
+				t.Controller = null;
+				continue;
+			}
+			if (t.Controller.IsWalking)
+			{
+				var ply = Game.CreatePlayer(t.Corpse.GetWorldPosition());
+				ply.SetProfile(t.Corpse.GetProfile());
+				ply.SetModifiers(t.Corpse.GetModifiers());
+				ply.CustomId = t.Corpse.CustomId;
+				ply.SetHealth(t.Controller.GetHealth());
+				ply.SetTeam(t.Controller.GetTeam());
+				ply.SetNametagVisible(t.Corpse.GetNametagVisible());
+				ply.SetStatusBarsVisible(t.Corpse.GetStatusBarsVisible());
+				ply.SetLinearVelocity(t.Corpse.GetLinearVelocity());
+				t.Corpse.Remove();
+				t.Corpse = ply;
+				t.Corpse.SetUser(t.User);
+				t.Controller.Remove();
+				t.Controller = null;
+				continue;
+			}
+			else if (t.Controller.GetUser() != t.User)
+				t.Controller.SetUser(t.User);
+		}
+		else
+		{
+			if (t.Corpse.IsWalking)
+			{
+				Game.CreateObject("InvisibleBlock", Game.GetCameraMaxArea().TopLeft).SetSizeFactor(
+					new Point((int)(Math.Abs(Game.GetCameraMaxArea().Left) + Math.Abs(Game.GetCameraMaxArea().Right)), 1));
+				t.Controller = Game.CreatePlayer(new Vector2(t.Corpse.GetWorldPosition().X, Game.GetCameraMaxArea().Top + 8));
+				t.Controller.SetUser(t.User);
+				t.Controller.SetNametagVisible(false);
+				t.Controller.SetTeam(t.Corpse.GetTeam());
+				t.Controller.SetHealth(t.Corpse.GetHealth());
+				t.Corpse.Kill();
+				t.LastHealth = t.Corpse.Statistics.TotalDamageTaken;
+			}
+		}
+		if (t.Corpse == null || t.Corpse.IsRemoved)
+		{
+			if (t.Controller != null && !t.Controller.IsRemoved)
+				t.Controller.Remove();
+			Thing._Things.Remove(t);
+			return;
+		}
+		if ((t.Controller == null || t.Controller.IsRemoved || t.Controller.IsDead) && t.Corpse.IsDead)
+		{
+			if (t.Controller != null && !t.Controller.IsRemoved)
+				t.Controller.Remove();
+			Thing._Things.Remove(t);
+			return;
+		}
+	}
+}
+class Thing
+{
+	public static List<Thing> _Things = new List<Thing>();
+	public IPlayer Corpse;
+	public float LastHealth;
+	public IPlayer Controller;
+	public IUser User;
+
+	public Thing(IPlayer p)
+	{
+		User = p.GetUser();
+		Corpse = p;
+	}
+}

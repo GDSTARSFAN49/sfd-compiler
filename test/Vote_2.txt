@@ -1,0 +1,697 @@
+public static class ColorProfile {
+	public static Color Error 		= new Color(255,0,0);
+	public static Color Accept 		= new Color(0,255,0);
+	public static Color Fail 		= new Color(255,51,0);
+	public static Color Progress	= new Color(255,153,0);
+}
+
+public static class Vote {
+
+	public enum Reason {
+		None,
+		Kick,
+		MapSkip,
+		MapEnd,
+		MapChange,
+		TimeLimit,
+		SetTeams,
+		StartScript,
+		StopScript
+	};
+
+	static Reason		Type		= Reason.None;
+	static long 		Ticks		= 0;
+	static string 		Arg			= "";
+	static int			Yes			= 0;
+	static int			No			= 0;
+	static List<string>	Accounts	= new List<string>();
+
+	static List<string> MapList 	= new List<string>();
+	static List<string> BanList 	= new List<string>();
+	static List<string> ScriptList 	= new List<string>();
+
+	static IScriptStorage io 		= Game.SessionStorage;
+	static IScriptStorage permio 	= Game.LocalStorage;
+
+	public static void Save() {
+		io.SetItem("Vote_Type", (int)Type);
+		io.SetItem("Vote_Ticks", Ticks);
+		io.SetItem("Vote_Arg", Arg);
+		io.SetItem("Vote_Yes", Yes);
+		io.SetItem("Vote_No", No);
+		io.SetItem("Vote_Accounts", Accounts.ToArray());
+		permio.SetItem("MapList", MapList.ToArray());
+		permio.SetItem("BanList", BanList.ToArray());
+		permio.SetItem("ScriptList", ScriptList.ToArray());		
+	}
+
+	public static void Load() {
+
+		{
+			int temp;
+			
+			if(io.TryGetItemInt("Vote_Type", out temp))
+				Type = (Reason)temp;
+		}
+
+		io.TryGetItemLong("Vote_Ticks", out Ticks);
+		io.TryGetItemString("Vote_Arg", out Arg);
+		io.TryGetItemInt("Vote_Yes", out Yes);
+		io.TryGetItemInt("Vote_No", out No);
+
+		{
+			string[] temp;
+
+			if(io.TryGetItemStringArr("Vote_Accounts", out temp))		
+				Accounts = new List<string>(temp);
+
+			if(permio.TryGetItemStringArr("MapList", out temp))
+				MapList = new List<string>(temp);
+
+			if(permio.TryGetItemStringArr("BanList", out temp))
+				BanList = new List<string>(temp);
+
+			if(permio.TryGetItemStringArr("ScriptList", out temp))
+				ScriptList = new List<string>(temp);
+		}
+
+		// BanList Players
+		foreach(IUser user in Game.GetActiveUsers()){
+			String AccountName = user.AccountName.Trim();
+			String Name = user.Name.Trim();
+
+			if(AccountName == "" || Name == ""){
+				Game.RunCommand("/BAN_USER " + user.UserIdentifier);
+				continue;
+			}
+
+			List<String> keywords = SplitSpecialChars(AccountName + " " + Name);
+
+			foreach(String word in keywords) {
+				foreach(String keyword in BanList) {
+
+					if(word.ToUpper() == keyword.ToUpper())
+						Game.RunCommand("/BAN_USER " + user.UserIdentifier);
+				}
+			}
+		}	
+
+		// Add Current Map
+		string MapName = Game.MapName;
+
+		if(MapName.Length >= 1 && MapName[0] == '.')
+			MapName = MapName.Substring(1);
+
+		if(MapName != "Unnamed" && !MapList.Contains(MapName))
+			MapList.Add(MapName);
+
+		// Sort Maps & Scripts
+		MapList.Sort();
+		BanList.Sort();
+		ScriptList.Sort();
+	}
+
+	public static void OnUpdate(float delta) {
+
+		if(Type == Reason.None)
+			return;
+
+		if(DateTime.Now.Ticks > Ticks || Yes >= MinVotes() || No >= MinVotes() || Yes + No >= Game.GetActiveUsers().Length) 
+			End();		
+	}
+
+	public static int MinVotes() {
+		return Game.GetActiveUsers().Length / 2 + 1;
+	}
+
+	public static void OnUserMessage(UserMessageCallbackArgs args) {
+		
+		if(args.IsCommand){
+			
+			/*
+				Vote Commands
+			*/
+			if(args.Command == "VOTEKICK")
+				Start(args.User, Vote.Reason.Kick, args.CommandArguments);
+			
+			if(args.Command == "VOTEMAP")
+				Start(args.User, Vote.Reason.MapChange, args.CommandArguments);
+
+			if(args.Command == "VOTEMAPSKIP" || args.Command == "VOTENEXTMAP")
+				Start(args.User, Vote.Reason.MapSkip, args.CommandArguments);
+
+			if(args.Command == "VOTEMAPEND" || args.Command == "VOTEGAMEOVER")
+				Start(args.User, Vote.Reason.MapEnd, args.CommandArguments);
+				
+			if(args.Command == "VOTETIMELIMIT")
+				Start(args.User, Vote.Reason.TimeLimit, args.CommandArguments);
+
+			if(args.Command == "VOTESCRIPT" || args.Command == "VOTESTARTSCRIPT")
+				Start(args.User, Vote.Reason.StartScript, args.CommandArguments);
+
+			if(args.Command == "VOTESCRIPTEND" || args.Command == "VOTESTOPSCRIPT")
+				Start(args.User, Vote.Reason.StopScript, args.CommandArguments);
+
+			if(args.Command == "VOTETEAMS" || args.Command == "VOTESETTEAMS")
+				Start(args.User, Vote.Reason.SetTeams, args.CommandArguments);
+			
+			if(args.Command == "Y")
+				UpdateVote(args.User, 1);
+			
+			if(args.Command == "N")
+				UpdateVote(args.User, -1);
+					
+			/*
+				Moderation Commands
+			*/
+			if(args.User.IsModerator) {
+
+				if(args.Command == "ADDMAP" || args.Command == "ADD_MAP") 
+					AddList(args.User, "MAP", args.CommandArguments);
+
+				if(args.Command == "ADDBAN" || args.Command == "ADD_BAN") 
+					AddList(args.User, "BAN", args.CommandArguments);
+
+				if(args.Command == "ADDSCRIPT" || args.Command == "ADD_SCRIPT") 
+					AddList(args.User, "SCRIPT", args.CommandArguments);
+
+				if(args.Command == "RMMAP" || args.Command == "RM_MAP")
+					RmList(args.User, "MAP", args.CommandArguments);
+
+				if(args.Command == "RMBAN" || args.Command == "RM_BAN")
+					RmList(args.User, "BAN", args.CommandArguments);
+
+				if(args.Command == "RMSCRIPT" || args.Command == "RM_SCRIPT")
+					RmList(args.User, "SCRIPT", args.CommandArguments);
+
+				if(args.Command == "BANLIST" || args.Command == "KSBANS")
+					ShowBanList(args.User);					
+			}
+
+			/*
+				Informational commands
+			*/
+			if(args.Command == "MAPLIST" || args.Command == "KSMAPS")
+				ShowMapList(args.User);
+			
+			if(args.Command == "MAPINFO" || args.Command == "KSMAPINFO")
+				ShowMapInfo(args.User);
+
+			if(args.Command == "SCRIPTLIST" || args.Command == "KSSCRIPTS")
+				ShowScriptList(args.User);
+
+			/*
+				Help Functions
+			*/
+			if(args.Command == "KSHELP"){
+				Game.ShowChatMessage("[ Server Info Commands ]", Color.White, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/MAPLIST' all server maps", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/MAPINFO' info about current map", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/SCRIPTLIST' all server scripts", ColorProfile.Progress, args.User.UserIdentifier);
+
+				if(args.User.IsModerator) 
+					Game.ShowChatMessage("    '/BANLIST' all server ban keywords", ColorProfile.Progress, args.User.UserIdentifier);
+
+				Game.ShowChatMessage("[ Vote Commands ]",Color.White,args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTEMAP [X]' change to map X", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTEMAPSKIP' skip to next map", ColorProfile.Progress, args.User.UserIdentifier);				
+				Game.ShowChatMessage("    '/VOTEMAPEND' end map round", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTESCRIPT [X]' enable script X", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTESCRIPTEND' disable all scripts", ColorProfile.Progress, args.User.UserIdentifier);			
+				Game.ShowChatMessage("    '/VOTEKICK [X]' kick player X", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTEKICK <X>' kick player in slot X", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTETIMELIMIT [X]' change timelimit to X seconds", ColorProfile.Progress, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/VOTETEAMS [X]' change teams to X", ColorProfile.Progress, args.User.UserIdentifier);
+				
+				if(args.User.IsModerator) {
+					Game.ShowChatMessage("[ Moderator Commands ]",Color.White,args.User.UserIdentifier);			
+					Game.ShowChatMessage("    '/ADDMAP [X]' add map X to votelist", ColorProfile.Progress, args.User.UserIdentifier);
+					Game.ShowChatMessage("    '/ADDBAN [X]' add banned keyword X", ColorProfile.Progress, args.User.UserIdentifier);
+					Game.ShowChatMessage("    '/ADDSCRIPT [X]' add script X to votelist", ColorProfile.Progress, args.User.UserIdentifier);
+					Game.ShowChatMessage("    '/RMMAP [X]' remove map X from votelist", ColorProfile.Progress, args.User.UserIdentifier);
+					Game.ShowChatMessage("    '/RMBAN [X]' remove banned keyword X", ColorProfile.Progress, args.User.UserIdentifier);
+					Game.ShowChatMessage("    '/RMSCRIPT [X]' remove script X to votelist", ColorProfile.Progress, args.User.UserIdentifier);
+				}
+
+				Game.ShowChatMessage("[ Input Commands ]", Color.White, args.User.UserIdentifier);			
+				Game.ShowChatMessage("    '/Y' agree to current vote", ColorProfile.Accept, args.User.UserIdentifier);
+				Game.ShowChatMessage("    '/N' disagree to current vote", ColorProfile.Fail, args.User.UserIdentifier);
+				
+				Game.ShowChatMessage("[ Scroll Up For More Commands ]", Color.White, args.User.UserIdentifier);
+			}
+		}
+	}
+
+	public static void Start(IUser user, Reason reason, string arg) {
+
+		if(Type != Reason.None) {
+			Game.ShowChatMessage("Vote already in progress!", ColorProfile.Error, user.UserIdentifier);
+			return;
+		}
+
+		// Reset the vote
+		Type = reason;
+		Arg = arg;
+		Ticks = DateTime.Now.AddSeconds(30).Ticks;
+		Accounts = new List<string>();
+		Yes = 0;
+		No = 0;
+
+		// Assume the voter wants what they started
+		UpdateVote(user, 1, false);
+
+		bool good = false;
+
+		switch(Type) {
+
+			case Reason.Kick: {
+			
+				if(Arg == ""){
+					Game.ShowChatMessage("/VOTEKICK [PlayerName or <PlayerSlot>]", ColorProfile.Error, user.UserIdentifier);	
+
+				}else{
+					IUser target = GetUserByName(Arg);
+
+					if(target == null) {
+						Game.ShowChatMessage("Failed to find: " + Arg, ColorProfile.Error, user.UserIdentifier);
+
+					}else if(target == user) {
+						Game.ShowChatMessage("Cannot kick yourself", ColorProfile.Error, user.UserIdentifier);
+
+					}else if(target.IsHost) {
+						Game.ShowChatMessage("Cannot kick the host", ColorProfile.Error, user.UserIdentifier);
+
+					}else if(target.IsModerator) {
+						Game.ShowChatMessage("Cannot kick moderators", ColorProfile.Error, user.UserIdentifier);
+
+					}else if(Game.GetActiveUsers().Length <= 2) {
+						Game.ShowChatMessage("Not enough players to unanimously vote", ColorProfile.Error, user.UserIdentifier);
+
+					}else {
+						good = true;
+						Arg = target.UserIdentifier.ToString();
+						UpdateVote(target, -1, false);
+						Game.ShowChatMessage(user.Name + " started vote to kick: " + target.Name, ColorProfile.Progress, user.UserIdentifier);
+					}
+				}
+				break;
+			}
+			
+			case Reason.MapSkip: {
+				good = true;
+				Game.ShowChatMessage(user.Name + " started vote to skip this map", ColorProfile.Progress);
+				break;
+			}
+			
+			case Reason.MapEnd: {
+				good = true;
+				Game.ShowChatMessage(user.Name + " started vote to end this map", ColorProfile.Progress);
+				break;
+			}
+			
+			case Reason.MapChange: {
+
+				if(Arg == "") {
+					Game.ShowChatMessage("/VOTEMAP [MapName]", ColorProfile.Error, user.UserIdentifier);
+
+				}else {
+					int index = SearchWord(Arg, MapList);
+
+					if(index == -1) {
+						Game.ShowChatMessage("Failed to find map: " + Arg, ColorProfile.Fail);
+
+					}else{
+						Arg = MapList[index];
+						good = true;	
+						Game.ShowChatMessage(user.Name + " started vote to change map to: " + Arg, ColorProfile.Progress);
+					}
+				}
+				break;
+			}
+
+			case Reason.TimeLimit: {
+
+				if(Arg == "") {
+					Game.ShowChatMessage("/VOTETIMELIMIT [GameSeconds]", ColorProfile.Error, user.UserIdentifier);
+
+				}else {
+					int seconds = 0;
+					
+					if(!Int32.TryParse(Arg, out seconds)) {
+						Game.ShowChatMessage("Invalid game timelimit provided", ColorProfile.Error, user.UserIdentifier);
+
+					}else{
+						good = true;
+						Game.ShowChatMessage(user.Name + " started vote to change timelimit to: " + Arg, ColorProfile.Progress);
+					}
+				}
+				break;		
+			}
+			
+			case Reason.StartScript: {
+
+				if(Arg == "") {
+					Game.ShowChatMessage("/VOTESCRIPT [ScriptName]", ColorProfile.Error, user.UserIdentifier);
+
+				}else{
+					int index = SearchWord(Arg, ScriptList);
+
+					if(index == -1) {
+						Game.ShowChatMessage("Failed to find script: " + Arg, ColorProfile.Fail);
+
+					}else {
+						Arg = ScriptList[index];
+						good = true;
+						Game.ShowChatMessage(user.Name + " started vote to enable script: " + Arg, ColorProfile.Progress);
+					}						
+				}
+				break;		
+			}
+			
+			case Reason.StopScript: {
+				good = true;
+				Game.ShowChatMessage(user.Name + " started vote to disable scripts", ColorProfile.Progress);
+				break;		
+			}
+
+			case Reason.SetTeams: {
+
+				if(Arg == "") {
+					Game.ShowChatMessage("/VOTETEAMS [0-1-2-3-4]", ColorProfile.Error, user.UserIdentifier);	
+
+				}else {
+					bool isTeamRule = true;
+
+					foreach(char c in Arg) {
+						if(!(c == '0' || c == '1' || c == '2' || c == '3' || c == '4'))
+							isTeamRule = false;
+					}
+
+					if(!isTeamRule) {
+						Game.ShowChatMessage("Invalid Team Args", ColorProfile.Error, user.UserIdentifier);
+
+					}else {
+						good = true;
+						Game.ShowChatMessage(user.Name + " started vote to change teams to: " + Arg, ColorProfile.Progress);
+					}
+				}
+				break;
+			}
+		}
+
+		// Validate the vote reason and arguments
+		if(good)
+			Game.ShowChatMessage("Vote now with /y or /n", Color.White);
+		else
+			Type = Reason.None;
+	}
+
+	public static void End() {
+
+		if(Type == Reason.None)
+			return;
+
+		if(Yes >= MinVotes()) {
+			Game.ShowChatMessage("Vote succeeded", ColorProfile.Accept);
+
+			switch(Type){
+
+				case Reason.Kick: {
+					Game.RunCommand("/KICK_USER " + Arg);
+					break;
+				}
+				
+				case Reason.MapSkip: {
+						Game.RunCommand("/NEXTMAP");
+						Game.RunCommand("/GAMEOVER");
+					break;
+				}
+				
+				case Reason.MapEnd: {
+					Game.RunCommand("/GAMEOVER");
+					break;
+				}
+				
+				case Reason.MapChange: {
+					Game.RunCommand("/MAP " + Arg);
+					Game.RunCommand("/GAMEOVER");
+					break;
+				}
+				
+				case Reason.StartScript: {
+
+					foreach(string script in ScriptList) 
+						Game.RunCommand("/STOPSCRIPT " + script);	
+					Game.RunCommand("/STARTSCRIPT " + Arg);
+					break;
+				}
+
+				case Reason.StopScript: {
+
+					foreach(string script in ScriptList) 
+						Game.RunCommand("/STOPSCRIPT " + script);					
+					break;
+				}
+
+				case Reason.TimeLimit: {
+					Game.RunCommand("/TIMELIMIT " + Arg);
+					break;
+				}
+
+				case Reason.SetTeams: {
+					Game.RunCommand("/SETTEAMS " + Arg);
+					break;
+				}
+			}
+		}else {
+			Game.ShowChatMessage("Vote failed", ColorProfile.Fail);
+		}
+
+		// Reset vote status
+		Type = Reason.None;
+	}
+
+	public static void UpdateVote(IUser user, int x, bool show = true){
+
+		if(Type == Reason.None) {
+			Game.ShowChatMessage("No vote in progress!", ColorProfile.Error);
+			return;			
+		}
+
+		if(Accounts.Contains(user.Name)){
+			Game.ShowChatMessage("You already voted!", ColorProfile.Error);
+			return;
+		}
+
+		if (x == 1)
+			Yes ++;
+		else
+			No ++;
+		
+		Accounts.Add(user.Name);
+
+		if(show)
+			Game.ShowChatMessage("Current Vote [ " + Yes + " : " + No + " ] / " + MinVotes(), ColorProfile.Progress);
+	}
+
+	public static void ShowMapInfo(IUser user) {
+		Game.ShowChatMessage("Map Name: " +  Game.MapName, ColorProfile.Progress, user.UserIdentifier);
+		Game.ShowChatMessage("Map Author: " +  Game.MapAuthor, ColorProfile.Progress, user.UserIdentifier);		
+	}
+
+	public static void ShowMapList(IUser user) {
+		Game.ShowChatMessage("[ Showing " + MapList.Count + " maps ]", Color.White, user.UserIdentifier);
+
+		foreach(string map in MapList)
+			Game.ShowChatMessage("    " + map, ColorProfile.Progress, user.UserIdentifier);
+
+		Game.ShowChatMessage("[ Showing " + MapList.Count + " maps ]", Color.White, user.UserIdentifier);			
+	}
+
+	public static void ShowScriptList(IUser user) {
+		Game.ShowChatMessage("[ Showing " + ScriptList.Count + " scripts ]", Color.White, user.UserIdentifier);
+
+		foreach(string script in ScriptList)
+			Game.ShowChatMessage("    " + script, ColorProfile.Progress, user.UserIdentifier);
+
+		Game.ShowChatMessage("[ Showing " + ScriptList.Count + " scripts ]", Color.White, user.UserIdentifier);			
+	}
+
+	public static void ShowBanList(IUser user) {
+		Game.ShowChatMessage("[ Showing " + BanList.Count + " bans ]", Color.White, user.UserIdentifier);
+
+		foreach(string ban in BanList)
+			Game.ShowChatMessage("    " + ban, ColorProfile.Progress, user.UserIdentifier);
+			
+		Game.ShowChatMessage("[ Showing " + BanList.Count + " bans ]", Color.White, user.UserIdentifier);			
+	}
+
+	public static void AddList(IUser user, string key, string val) {
+
+		switch(key) {
+			case "MAP":
+				MapList.Add(val);
+				break;
+
+			case "BAN":
+				BanList.Add(val);			
+				break;		
+
+			case "SCRIPT":
+				ScriptList.Add(val);					
+				break;				
+		}
+		Game.ShowChatMessage("Added " + key.ToLower() + ": " + val, ColorProfile.Accept, user.UserIdentifier);	
+	}
+
+	public static void RmList(IUser user, string key, string val) {
+
+		switch(key) {
+
+			case "MAP": {
+				int index = SearchWord(val, MapList);
+
+				if(index == -1) {
+					Game.ShowChatMessage("Failed to find map: " + val, ColorProfile.Fail, user.UserIdentifier);	
+	
+				}else {
+					Game.ShowChatMessage("Removed map: " + MapList[index], ColorProfile.Accept, user.UserIdentifier);					
+					MapList.RemoveAt(index);								
+				}
+				break;				
+			}
+
+
+			case "BAN": {
+				int index = SearchWord(val, BanList);
+
+				if(index == -1) {
+					Game.ShowChatMessage("Failed to find ban: " + val, ColorProfile.Fail, user.UserIdentifier);	
+	
+				}else {
+					Game.ShowChatMessage("Removed ban: " + BanList[index], ColorProfile.Accept, user.UserIdentifier);					
+					BanList.RemoveAt(index);								
+				}
+				break;
+			}	
+
+			case "SCRIPT": {
+				int index = SearchWord(val, ScriptList);
+
+				if(index == -1) {
+					Game.ShowChatMessage("Failed to find script: " + val, ColorProfile.Fail, user.UserIdentifier);	
+	
+				}else {
+					Game.ShowChatMessage("Removed script: " + ScriptList[index], ColorProfile.Accept, user.UserIdentifier);					
+					ScriptList.RemoveAt(index);								
+				}
+				break;
+			}		
+		}
+	}	
+};
+
+public Events.UserMessageCallback 	m_userMessageCallback 	= null;
+public Events.UpdateCallback		m_updateCallback 		= null;
+
+public void OnStartup(){
+
+	//Set Vote Status
+	Vote.Load();
+
+	//Start Events
+ 	m_userMessageCallback = Events.UserMessageCallback.Start(Vote.OnUserMessage);
+	m_updateCallback = Events.UpdateCallback.Start(Vote.OnUpdate, 1000);
+}
+
+public void OnShutdown(){
+	m_userMessageCallback.Stop();
+
+	//Save Vote Status
+	Vote.Save();
+}
+
+/*
+	Helper Functions
+*/
+public static IUser GetUserByName(string input){
+	
+	int slot = -2;
+
+	// Get requested slot
+	if(input.Length == 3 && input[0] == '<' && input[2] == '>')
+		slot = (int)input[1] - 48;
+	
+	// Search by name first, so people don't spoof with names with angled brackets
+	foreach(IUser user in Game.GetActiveUsers()){
+		
+		if(user.Name == input)
+			return user;
+	}	
+
+	// Search by slot as backup
+	foreach(IUser user in Game.GetActiveUsers()){
+		
+		if(user.GameSlotIndex == slot)
+			return user;
+	}		
+	return null;	
+}
+
+public static List<string> SplitSpecialChars(String str) {
+
+	List<String> words = new List<String>();
+	String acc = "";
+
+	for(int i = 0; i < str.Length; i ++) {
+
+		if(!Char.IsLetter(str[i])) {
+			
+			if(acc != "")
+				words.Add(acc);
+			acc = "";
+
+		}else{
+			acc += str[i];
+		}
+	}
+
+	if(acc != "")
+		words.Add(acc);
+
+	return words;
+}
+
+public static int SearchWord(string word, List<string> list) {
+
+	if(word == "")
+		return -1;
+
+	int index = -1;
+	double prevScore = 0;
+
+	for(int i = 0; i < list.Count; i ++){
+		string w1 = word.ToUpper();
+		string w2 = list[i].ToUpper();
+
+		int max = (w1.Length > w2.Length) ? w1.Length : w2.Length;
+		int min = (w1.Length > w2.Length) ? w2.Length : w1.Length;
+		int match = 0;
+
+		for(int j = 0; j < min; j ++){
+			if(w1[j] == w2[j])
+				match ++;
+		}
+		double score = (double)match / max;
+
+		if(score > prevScore) {
+			index = i;
+			prevScore = score;
+		}
+	}
+
+	if(prevScore > 0.5)
+		return index;
+	else
+		return -1;
+}

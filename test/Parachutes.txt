@@ -1,0 +1,92 @@
+/*
+* author: Motto73
+* description: Press F mid air to open parachute.
+* mapmodes: versus, custom, campaign, survival 
+*/
+
+
+//Settings
+LineVisual _LineVisual = LineVisual.DJRope; //The rope
+
+//Code
+public void OnStartup()
+{
+	foreach (IPlayer p in Game.GetPlayers())
+	{
+		var w = (IObjectWeldJoint)Game.CreateObject("WeldJoint", p.GetWorldPosition());
+		var bu = (IObjectTrigger)Game.CreateObject("ActivateTrigger", p.GetWorldPosition() + new Vector2(0, 11));
+		bu.SetScriptMethod("PARASHOOPa");
+		bu.SetBodyType(BodyType.Dynamic);
+		bu.SetMass(0.001f);
+		w.AddTargetObject(bu);
+		w.AddTargetObject(p);
+		bu.CustomId = "nope_"+p.UniqueId;
+	}
+	Events.UpdateCallback.Start(UpdatePositions);
+}
+public void UpdatePositions(float e)
+{
+	foreach (IPlayer p in Game.GetPlayers())
+		if (p != null && !p.IsRemoved && !p.IsDead && p.IsUser)
+			if (Game.GetSingleObjectByCustomId(p.UniqueId + "PARA") != null)
+				foreach (IObject o in Game.GetObjectsByCustomId(p.UniqueId + "PARA"))
+					if (o is IObjectPullJoint || o.Name == "InvisibleBlockNoCollision") 
+						o.SetWorldPosition(p.GetWorldPosition() + new Vector2(0, 80));
+}
+public void PARASHOOPa(TriggerArgs M73)
+{
+	var bu = M73.Caller as IObject;
+	var p = M73.Sender as IPlayer;
+	if (bu.CustomId.StartsWith("nope"))
+	{
+		if (p.IsInMidAir && p.UniqueId == int.Parse(bu.CustomId.Split('_')[1]))
+		{
+			Parashoot(p);
+			bu.CustomId = "yep_" + p.UniqueId;
+		}
+	}
+	else {
+		ParaDestroy(p);
+		bu.CustomId = "nope_" + p.UniqueId;
+	}
+}
+
+public void Parashoot(IPlayer p)
+{
+	var pos = p.GetWorldPosition();
+	var d1 = (IObjectDistanceJoint)Game.CreateObject("DistanceJoint", pos);
+	var d2 = (IObjectDistanceJoint)Game.CreateObject("DistanceJoint", pos);
+	var t1 = (IObjectTargetObjectJoint)Game.CreateObject("TargetObjectJoint", pos + new Vector2(-23, 32));
+	var t2 = (IObjectTargetObjectJoint)Game.CreateObject("TargetObjectJoint", pos + new Vector2(23, 32));
+	var bg = Game.CreateObject("BgCarnivalTent01B", pos + new Vector2(0, 40));
+	var pj = (IObjectPullJoint)Game.CreateObject("PullJoint", pos + new Vector2(0, 80));
+	var ob = Game.CreateObject("InvisibleBlockNoCollision", pos + new Vector2(0, 80));
+	var t3 = (IObjectTargetObjectJoint)Game.CreateObject("TargetObjectJoint", pos + new Vector2(0, 40));
+
+	d1.SetTargetObjectJoint(t1);
+	d1.SetTargetObject(p);
+	d1.SetLineVisual(_LineVisual);
+	d2.SetTargetObjectJoint(t2);
+	d2.SetTargetObject(p);
+	d2.SetLineVisual(_LineVisual);
+
+	d2.SetLengthType(DistanceJointLengthType.Elastic);
+	d1.SetLengthType(DistanceJointLengthType.Elastic);
+
+	t1.SetTargetObject(bg);
+	t2.SetTargetObject(bg);
+	bg.SetBodyType(BodyType.Dynamic);
+
+	t3.SetTargetObject(bg);
+	pj.SetTargetObject(ob);
+	pj.SetTargetObjectJoint(t3);
+	pj.SetForce(2.6f);
+	pj.SetForcePerDistance(0);
+
+	d1.CustomId = d2.CustomId = t1.CustomId = t2.CustomId = t3.CustomId = bg.CustomId = pj.CustomId = ob.CustomId = p.UniqueId + "PARA";
+}
+public void ParaDestroy(IPlayer p)
+{
+	foreach (IObject o in Game.GetObjectsByCustomId(p.UniqueId + "PARA"))
+		o.Remove();
+}

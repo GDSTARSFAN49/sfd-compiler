@@ -1,0 +1,38 @@
+public const uint COOLDOWN = 1000;
+
+public void OnStartup() {
+  Events.UpdateCallback.Start(Indicate, COOLDOWN);
+}
+
+public void Indicate(float dlt) {
+  foreach(IObjectWeaponItem weap in Game.GetObjects < IObjectWeaponItem > ()
+  .Where(w => w.WeaponItemType == WeaponItemType.Handgun || w.WeaponItemType == WeaponItemType.Rifle)) {
+    Vector2 pos = weap.GetWorldPosition();
+
+    if (weap.GetCurrentAmmo() == weap.GetMaxAmmo())
+      Game.PlayEffect(EffectName.Sparks, pos);
+
+    if (weap.GetCurrentAmmo() == 0)
+      Game.PlayEffect(EffectName.Steam, pos);
+
+    if (weap.RangedWeapon.PowerupBouncingRounds != 0)
+      Game.PlayEffect(EffectName.Electric, pos);
+
+    if (weap.RangedWeapon.PowerupFireRounds != 0)
+      Game.PlayEffect(EffectName.FireNodeTrailGround, pos);
+
+    if (weap.RangedWeapon.LazerEquipped)
+      Game.PlayEffect(EffectName.BloodTrail, pos);
+  }
+
+  foreach(IObjectWeaponItem weap in Game.GetObjects < IObjectWeaponItem > ()
+  .Where(w => w.WeaponItemType == WeaponItemType.Melee && !w.MeleeWeapon.IsMakeshift)) {
+    Vector2 pos = weap.GetWorldPosition();
+
+    if (weap.MeleeWeapon.CurrentValue < 30)
+      Game.PlayEffect(EffectName.Steam, pos);
+
+    if (weap.MeleeWeapon.CurrentValue == 100)
+     Game.PlayEffect(EffectName.Sparks, pos);
+  }
+}

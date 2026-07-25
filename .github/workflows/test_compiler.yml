@@ -1,0 +1,39 @@
+# Nombre del flujo de trabajo
+name: Pruebas del Compilador SFD
+
+on:
+  # Ejecuta los tests cuando subas código a la rama dev
+  push:
+    branches: [ "dev" ]
+    
+  # Ejecuta los tests cuando intentes fusionar dev con main
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  ejecutar_pruebas:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Clonar el repositorio en la máquina virtual
+      - name: Descargar codigo fuente
+        uses: actions/checkout@v4
+
+      # Instalar el SDK de .NET (Ajusta la versión si no usas la 8.0)
+      - name: Configurar entorno .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x' 
+
+      # Restaurar los paquetes NuGet (si los hay)
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      # Compilar el proyecto entero
+      - name: Compilar el código
+        run: dotnet build --no-restore
+
+      # Ejecutar los tests
+      # Si un test falla aquí, este paso devuelve un error y detiene el flujo con una "X" roja.
+      - name: Ejecutar pruebas automáticas
+        run: dotnet test --no-build --verbosity normal

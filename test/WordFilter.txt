@@ -1,0 +1,443 @@
+/*
+* author: sree
+* description: Punishes players for swearing in chat.
+* gamemodes: versus, custom
+*/
+
+
+
+//  ______ _ _ _              _____           _       _   
+//  |  ___(_) | |            /  ___|         (_)     | |  
+//  | |_   _| | |_ ___ _ __  \ `--.  ___ _ __ _ _ __ | |_ 
+//  |  _| | | | __/ _ \ '__|  `--. \/ __| '__| | '_ \| __|
+//  | |   | | | ||  __/ |    /\__/ / (__| |  | | |_) | |_ 
+//  \_|   |_|_|\__\___|_|    \____/ \___|_|  |_| .__/ \__|
+//                                             | |        
+//                                             |_|        
+
+
+// 		    Created by: sree
+// 		    Finalized by: KliPeH
+
+
+//	 _____        _    _    _                    
+// 	/  ___|      | |  | |  (_)                   
+//	\ `--.   ___ | |_ | |_  _  _ __    __ _  ___ 
+//	 `--. \ / _ \| __|| __|| || '_ \  / _` |/ __|
+//	/\__/ /|  __/| |_ | |_ | || | | || (_| |\__ \
+//	\____/  \___| \__| \__||_||_| |_| \__, ||___/
+//	                                   __/ |     
+//	                                  |___/      
+
+
+
+public int WARNINGS = 3;					// Number of warnings given before action against a player is taken.
+public bool ANNOUNCE_MESSAGES = true;				// Set to "false" to warn players in private (announce publicly otherwise).
+public Color ChatMessageColor = new Color (255, 204, 153);	// Modify the color of warning messages (RGB values).
+
+public Punishment Final = Punishment.KICK;   		 	// Change to "Punishment.BAN" to permanently ban players instead of kicking them.
+public bool AddPunishmentDelay = true;				// Delay punishment for a few seconds so that players are notified of the action properly.
+
+public bool DisplayMessageOnStartup = true;			// Set to "true" to announce the script being run at the beginning of each round.
+public string StartupMessage =					// Modify the startup announcement here:
+
+
+"WARNING: Some game terms are forbidden on this server. Say '/words' in chat to display the forbidden word list.";
+
+
+string[] words =						// Words or phrases to filter out. Input each word or phrase into its own quote space.
+								// Seperate quote spaces with commas (","). Do not remove the quote marks or the curly bracket wrapper!
+	{
+
+"ez",
+"nob",
+"noob",
+"tryhard",
+"try hard",
+"try harder",
+"runner",
+"no run",
+"stop run",
+"stop running",
+"camper",
+"no camp",
+"stop camp",
+"stop camping",
+"grabber",
+"no grab",
+"stop grab",
+"stop grabbing",
+"lagger",
+"rat",
+"no skill",
+"zero skill",
+"0 skill",
+"1v1",
+"1 v 1",
+"1 on 1",
+"one on one",
+"2v1",
+"2 v 1",
+"teamer",
+"cheap"
+
+	};
+
+
+
+//		 _____             _       
+//		/  __ \           | |      
+//		| /  \/  ___    __| |  ___ 
+//		| |     / _ \  / _` | / _ \
+//		| \__/\| (_) || (_| ||  __/
+//		 \____/ \___/  \__,_| \___|
+
+
+
+
+public void OnStartup() 
+{
+    Events.UserMessageCallback.Start(OnUserMessage);
+
+    if (DisplayMessageOnStartup)
+        Game.ShowChatMessage(StartupMessage, new Color(255, 153, 51));
+
+    foreach (var p in Game.GetPlayers())
+    {
+        Player.Players.Add(new Player(p));
+    }
+
+    var data = Game.SessionStorage.GetItem("data") as string;
+
+    if (data == null || data == "") 
+        return;
+ 
+    var playerdatas = data.Split(',');
+
+    foreach (var pd in playerdatas)
+    {
+        var x = pd.Split(';');
+        var player = Player.Players.Where(p => p.User.ConnectionIP == x[0]).FirstOrDefault();
+
+        if (player == null)
+            continue;
+  
+        var e_player = new Player(player.Ply, Convert.ToInt32(x[1]));
+        Player.Players.Remove(player);
+        Player.Players.Add(e_player);
+    }
+
+    new Timers("Global").AddTimer(1000, 0, (args) =>  
+    { 
+        string log;
+
+        if (Game.SessionStorage.TryGetItemString("plist", out log))
+        {
+            var ulog = log.Split(',').ToList();
+
+            foreach (var x in log.Split(','))
+            {
+                if (x == null || x == "")
+                    continue;
+
+                var xy = x.Split(';');
+                var ply = Game.GetActiveUsers().FirstOrDefault(ux => ux.ConnectionIP.Equals(xy[0]));
+                if (ply != null) 
+                {
+                    Game.ShowChatMessage(Capitalize(xy[1].ToLowerInvariant()) + "ing " + ply.Name + " for evading punishment earlier", ChatMessageColor);
+                    Game.RunCommand("/" + xy[1] + " " + ply.Name);
+                    ulog.Remove(x);
+                }
+            }
+ 
+            Game.SessionStorage.SetItem("plist", string.Join(",", ulog.ToArray()));
+        }
+    });
+}
+
+public void OnShutdown()
+{
+    var data = "";
+
+    for (var i = 0; i < Player.Players.Count(); i++)
+    {
+         if (Player.Players[i].IsHost)
+             continue;
+
+         data += Player.Players[i].IP + ";" + Player.Players[i].Warnings;
+
+         if (i != Player.Players.Count() - 1) 
+             data += ",";
+    }
+ 
+    Game.SessionStorage.SetItem("data", data);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs ua) 
+{ 
+    switch (ua.Command)
+    {
+        case "WORDS": 
+           var ws = string.Join(", ", words);
+           
+           if (ws.Length > 87)
+               ws = ws.Substring(0, 84) + " [...]";
+
+           var str = string.Format("The forbidden words are: \"{0}\"", ws);
+           Game.ShowChatMessage(str, ChatMessageColor, ua.User.UserIdentifier);
+           break;
+    }
+
+    if (ua.User.IsHost)
+    {
+        return;
+    }
+
+    var msg = ua.Message.Split(']');
+    var actual_message = msg[msg.Count() - 1];
+
+    var player = Player.GetPlayer(ua.User);
+
+    if (player == null)
+    {
+        player = new Player(ua.User);
+ 
+        if (Player.Players != null)
+            Player.Players.Add(player);
+    }
+
+    foreach (var s in words.Where(w => w != "" || w != null))
+    {
+        if (actual_message.ToLowerInvariant().Split(' ').Contains(s.ToLowerInvariant()) || 
+            Truncate2(actual_message).ToLowerInvariant().Split(' ').Contains(s.ToLowerInvariant()) ||
+            Truncate2(actual_message).Split(' ').Select(x => x.ToLowerInvariant()).ToList().Any(x => Sanitize(x).Contains(s)) ||
+            (s.Contains(" ") && actual_message.ToLowerInvariant().Contains(s.ToLowerInvariant())) ||
+            (s.Contains(" ") && Sanitize(Truncate2(actual_message).ToLowerInvariant()).Any(x => x.Contains(s.ToLowerInvariant()))) ||
+            (s.Length > 3 && actual_message.ToLowerInvariant().Contains(string.Join("", s.ToLowerInvariant().Split(' ')))) ||
+            (s.Length > 3 && Sanitize(s).Any(x => Truncate2(actual_message).ToLowerInvariant().Split(' ').Any(y => y.Length > 4 && (y.Contains(s) || y.Contains(x))))))
+        {
+            var warnings = player.Warnings;
+            var message = "";
+
+            if (warnings < WARNINGS - 1)
+            {
+                message = string.Format("The phrase \"{0}\" is forbidden on this server. Continued use will result in a {2}. This is warning #{1}.", s, warnings + 1, (this.Final == Punishment.BAN ? "ban" : "kick"));
+                warnings ++;
+            }
+
+            else if (warnings == WARNINGS - 1)
+            {
+                message = string.Format("The phrase \"{0}\" is forbidden on this server. Continued use will result in a {1}. This is your final warning!", s, (this.Final == Punishment.BAN ? "ban" : "kick"));
+                warnings ++;
+            }
+ 
+            else if (warnings == WARNINGS)
+            {
+                message = ua.User.Name + " received too many infractions. " + (this.Final == Punishment.BAN ? "Ban" : "Kick") + " in progress...";
+                var ip = ua.User.ConnectionIP;
+
+                new Timers("Global").AddTimer(AddPunishmentDelay ? 3000 : 1, 1, (args) => 
+                {
+                    if (Game.GetActiveUsers().Any(u => u.ConnectionIP.Equals(ip)))
+                        Game.RunCommand(this.Final == Punishment.BAN ? "/ban " : "/kick " + ua.User.Name);
+
+                    else if (!Game.GetActiveUsers().Any(u => u.ConnectionIP.Equals(ip)))   
+                    {
+                        this.Log(ip, this.Final.ToString());
+                    }
+                });
+            }
+
+            switch (ANNOUNCE_MESSAGES)
+            {
+                case true: 
+                    if (message != "")
+                        Game.ShowChatMessage(message, ChatMessageColor);
+
+                    break;
+
+                case false:
+                    if (message != "")
+                        Game.ShowChatMessage(message, ChatMessageColor, ua.User.UserIdentifier);
+
+                    break;
+            }
+ 
+            player.Warnings = warnings;
+            return;
+        }
+    }
+} 
+
+public class Player 
+{
+   public static List<Player> Players = new List<Player>();
+   public int Warnings { get; set; }
+   public IPlayer Ply { get; set; }
+   public IUser User { get; set; }
+   public string IP { get; set; }
+   public bool IsHost { get; set; }
+  
+   public Player (IPlayer ply)
+   {
+       this.Ply = ply;
+       this.User = ply.GetUser();
+       this.Warnings = 0;
+       this.IP = User.ConnectionIP;
+       this.IsHost = User.IsHost;
+   }
+
+   public Player (IUser user)
+   {
+       this.Ply = null;
+       this.User = user;
+       this.Warnings = 0;
+       this.IP = user.ConnectionIP;
+       this.IsHost = user.IsHost;
+   }
+
+   public Player (IPlayer ply, int warnings)
+   {
+       this.Ply = ply;
+       this.User = ply.GetUser();
+       this.Warnings = warnings;
+       this.IP = User.ConnectionIP;
+       this.IsHost = User.IsHost;
+   }
+
+    public static Player GetPlayer(IUser user)
+    {
+        return Players.FirstOrDefault(p => p.IP == user.ConnectionIP);
+    }
+}
+
+public enum Punishment 
+{
+   BAN, 
+   KICK
+}
+
+class Timers 
+{ 
+    public string GlobalMethod { get; set; }
+    public static Dictionary<string, Action<TriggerArgs>> Actions = new Dictionary<string, Action<TriggerArgs>>();
+
+    public Timers(string globalMethod) 
+    {
+        this.GlobalMethod = globalMethod;
+    }
+
+    public Timers AddTimer(int interval, int repeatCount, Action<TriggerArgs> action) 
+    {
+        var timer = Game.CreateObject("TimerTrigger", Vector2.Zero) as IObjectTimerTrigger; 
+        var guid = Guid.NewGuid().ToString();
+        timer.SetIntervalTime(interval);
+        timer.SetRepeatCount(repeatCount); 
+        timer.SetScriptMethod(GlobalMethod);
+        timer.CustomId = guid;
+        timer.Trigger();
+        Actions.Add(guid, action);
+
+        return this;
+    }
+
+    public static void HandleTimers(TriggerArgs args) 
+    {
+        var guid = (args.Caller as IObject).CustomId;
+        var action = Actions[guid];
+        
+        action.Invoke(args);
+    }
+}
+
+public static string Capitalize(string input)
+{
+    if (String.IsNullOrEmpty(input))
+        return "";
+
+    return input.First().ToString().ToUpper() + String.Join("", input.Skip(1));
+}
+
+public string[] Sanitize(string input) 
+{
+    Func<string, string, string, string> replace = (a, b, c) =>
+    {
+        var x = b.Split(',').ToList();
+        var y = c.Split(',');
+        var r = "";
+
+        foreach (var l in a) 
+        {
+            if (x.Contains(l.ToString())) 
+            {
+                r += y[x.IndexOf(l.ToString())];
+            }
+            else 
+            {
+                r += l;
+            }
+        }
+
+        return r;
+    };
+ 
+    var list = new List<string>();
+    var bs = replace(input, "0,4,5,3,8,7,2", "o,a,s,e,b,t,r");
+    list.Add(replace(bs, "@", "a"));
+    list.Add(replace(bs, "@", "o"));
+    list.Add(replace(bs, "9", "g"));
+    list.Add(replace(bs, "6", "g")); 
+    list.Add(replace(bs, "|", "i"));
+    list.Add(replace(bs, "l", "i"));
+    list.Add(replace(bs, "1", "i"));
+    list.Add(replace(bs, "!", "i"));
+    list.Add(replace(bs, "i", "l"));
+    list.Add(replace(bs, "$", "s"));
+    list.Add(replace(bs, "5", "s"));
+    list.Add(string.Join("", input.ToArray().Distinct()));
+
+    var newList = new List<string>();
+    foreach (var i in list)
+        newList.Add(string.Join("", i.ToArray().Distinct()));
+
+    list.AddRange(newList);
+    list.Remove(input);
+
+    list = list.Where(x => x.Length > 2).ToList();
+    return list.Distinct().ToArray();
+}
+
+public string Truncate2(string input) 
+{
+    string str = ""; 
+    string[] strarr = input.Split();
+
+    for (int i = 0; i < input.Split(' ').Length; i++)
+    {
+        str += input.Split(' ')[i];
+
+        if (i != input.Split(' ').Length - 1 && (input.Split(' ')[i].Length <= 2 && input.Split(' ')[i + 1].Length <= 2))
+            continue;
+
+        str += " ";
+    }
+
+    return str;
+}
+
+public void Log(string ip, string punishment) 
+{ 
+    string log;
+    if (!Game.SessionStorage.TryGetItemString("plist", out log))
+    {
+        log = "";
+    }
+
+    log += ip + ";" + punishment + ",";
+    Game.SessionStorage.SetItem("plist", log);
+}
+
+public void Global (TriggerArgs args) 
+{
+    Timers.HandleTimers(args);
+}

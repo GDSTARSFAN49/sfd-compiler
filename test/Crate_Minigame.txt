@@ -1,0 +1,70 @@
+int destroyed = 0;
+int left = 20;
+bool notover = true;
+
+public void OnStartup()
+{
+	Game.AutoVictoryConditionEnabled = false;
+	Game.AutoSpawnSupplyCratesEnabled = true;
+	IObjectTimerTrigger Timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	Timer.SetIntervalTime(0);
+	Timer.SetRepeatCount(0);
+	Timer.SetScriptMethod("DoStuff");
+	Timer.Trigger();
+	Game.RunCommand("/IH 1");
+	Game.RunCommand("/IE 1");
+	Game.RunCommand("/IA 1");
+	Game.ShowChatMessage(String.Format("Crate Minigame started! Destroy 20 supply crates!"), new Color(255,255,0));
+	Game.ShowChatMessage("Crates left: " + left.ToString(), new Color(0,255,0));
+	destroyed++;
+	left--;
+}
+
+public void DoStuff(TriggerArgs args)
+{
+	foreach(IPlayer ply in Game.GetPlayers())
+	{
+		ply.SetTeam(PlayerTeam.Team1);
+	}
+	foreach(IObject thing in Game.GetObjectsByName("SupplyCrate00"))
+	{
+		if(thing.IsRemoved || thing.RemovalInitiated || thing.DestructionInitiated)
+		{
+			if(destroyed == 20 && left == 0 && notover == true)
+			{
+				takecare();
+				Game.AutoSpawnSupplyCratesEnabled = false;
+				notover = false;
+				Game.ShowChatMessage(String.Format("You won!"), new Color(0,255,0));
+				Game.PlaySound("TutorialSuccess2", thing.GetWorldPosition());
+				Game.SetGameOver("Good job!");
+				Game.RunCommand("/IH 0");
+				Game.RunCommand("/IE 0");
+				Game.RunCommand("/IA 0");
+				Game.RunCommand("/STOPSCRIPT CM");
+			}
+			else
+			{
+				if(notover == true){
+				Game.ShowChatMessage("Crates left: " + left.ToString(), new Color(0,255,0));
+				Game.ShowChatMessage("Crates destroyed: " + destroyed.ToString(), new Color(0,255,0));
+				Game.PlaySound("TutorialSuccess1", thing.GetWorldPosition());
+				destroyed++;
+				left--;
+				}
+			}
+		}
+	}
+}
+
+public void takecare()
+{
+	foreach(IObject thing in Game.GetObjectsByName("SupplyCrate00"))
+	{
+		thing.Remove();
+	}
+	foreach(IPlayer ply in Game.GetPlayers())
+	{
+		ply.SetTeam(PlayerTeam.Independent);
+	}
+}

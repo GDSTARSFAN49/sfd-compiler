@@ -1,0 +1,71 @@
+/*
+* author: Ebomb09
+* description: Protect thyself from the blast of pure evil 
+* mapmodes: versus, custom, campaign, survival 
+*/
+
+List<User> Protect_List = new List<User>();
+PlayerModifiers R_Protect = new PlayerModifiers();
+
+public void OnStartup(){
+
+	foreach(IObject obj in Game.GetObjectsByName(new string[]{"SpawnWeapon","SpawnWeaponArea","SpawnWeaponAreaCeiling"})){
+		obj.Remove();
+	}	
+	Game.RunCommand("/ia 1");
+
+	R_Protect.MaxHealth = 9999;
+
+	foreach(IPlayer ply in Game.GetPlayers()){
+		PlayerModifiers mods = ply.GetModifiers();
+		mods.ExplosionDamageTakenModifier = 0.5f;
+		ply.SetModifiers(mods);
+		Protect_List.Add(new User(ply));
+	}
+
+	IObjectTimerTrigger Timer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	Timer.SetRepeatCount(0);
+	Timer.SetIntervalTime(0);
+	Timer.SetScriptMethod("Protect");
+	Timer.Trigger();
+
+}
+
+public class User{
+
+	public IPlayer ply;
+	public PlayerModifiers Orig_Mods;
+	public int Orig_Health;
+	public int LastCheck = 0;
+
+	public User(IPlayer Player){
+		ply = Player;
+		Orig_Mods = Player.GetModifiers();
+		Orig_Health = (int)Player.GetHealth();
+	}
+
+}
+
+public void Protect(TriggerArgs args){
+
+	foreach(User user in Protect_List){	
+		if(user.ply.CurrentPrimaryWeapon.WeaponItem != WeaponItem.BAZOOKA){
+			user.ply.GiveWeaponItem(WeaponItem.BAZOOKA);
+		}
+		if(user.ply.IsRocketRiding){
+			user.ply.SetModifiers(R_Protect);
+			user.ply.SetHealth(9999);
+			user.LastCheck = 1;
+		}
+		if(!user.ply.IsRocketRiding){
+			if(user.LastCheck == 1){
+				user.ply.SetModifiers(user.Orig_Mods);
+				user.ply.SetHealth(user.Orig_Health);
+				user.LastCheck = 0;
+			}		
+			user.Orig_Health = (int)user.ply.GetHealth();	
+		}
+
+	}
+
+}

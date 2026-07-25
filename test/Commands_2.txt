@@ -1,0 +1,679 @@
+public class Data
+{
+    public static List<Data> List = new List<Data>();
+    public IUser user;
+    public IObjectTimerTrigger reviveTimer;
+    public IObjectTimerTrigger tripTimer;
+    public PlayerModifiers trip;
+    public bool revive;
+    public bool noclip;
+    public bool clipping;
+    public string bullet;
+
+    public Data(IUser user)
+    {
+        this.user = user;
+        reviveTimer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+        reviveTimer.SetRepeatCount(1);
+        reviveTimer.SetIntervalTime(3000);
+        reviveTimer.SetScriptMethod("ReviveTiming");
+        reviveTimer.CustomId = user.UserIdentifier.ToString();
+
+        tripTimer = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+        tripTimer.SetRepeatCount(1);
+        tripTimer.SetIntervalTime(100);
+        tripTimer.SetScriptMethod("TripTiming");
+        tripTimer.CustomId = user.UserIdentifier.ToString();
+    }
+}
+
+public IUser[] Match(string[] players)
+{
+    List<IUser> users = new List<IUser>();
+    foreach (string player in players)
+    {
+        if (!string.IsNullOrEmpty(player))
+        {
+            IUser temp = null;
+            if (player.All(char.IsDigit))
+                temp = Game.GetActiveUsers().Where(x => x.GameSlotIndex == int.Parse(player)).Except(users).ToArray().FirstOrDefault();
+            else if (player == "all")
+                users.AddRange(Game.GetActiveUsers().Except(users));
+            else
+                temp = Game.GetActiveUsers().Where(x => x.Name.ToLower().Contains(player)).Except(users).ToArray().FirstOrDefault();
+
+            if (temp != null && !users.Contains(temp))
+                users.Add(temp);
+        }
+    }
+    return users.ToArray();
+}
+
+public void TripTiming(TriggerArgs args)
+{
+    Data data = Data.List.Find(x => x.user.Equals(Game.GetActiveUser(int.Parse(((IObject)args.Caller).CustomId))));
+    if (data.user.GetPlayer() != null)
+        data.user.GetPlayer().SetModifiers(data.trip);
+}
+
+public void UpdateList()
+{
+    foreach (IUser user in Game.GetActiveUsers())
+    {
+        if (Data.List.All(x => !x.user.Equals(user)))
+            Data.List.Add(new Data(user));
+    }
+}
+
+public void ReviveTiming(TriggerArgs args)
+{
+    IUser user = Game.GetActiveUser(int.Parse(((IObject)args.Caller).CustomId));
+    if (user != null)
+    {
+        Data data = Data.List.Find(x => x.user.Equals(user));
+        if (data != null)
+        {
+            bool temp = data.revive;
+            if (temp)
+                data.revive = false;
+
+            if (user.GetPlayer() != null)
+                DeadRevive(user);
+            else
+                GibRevive(user);
+
+            if (temp)
+                data.revive = true;
+        }
+    }
+}
+
+public void DeadRevive(IUser user)
+{
+    IPlayer origin = user.GetPlayer();
+    IPlayer target = Game.CreatePlayer(origin.GetWorldPosition());
+    target.SetProfile(origin.GetProfile());
+    target.SetTeam(origin.GetTeam());
+    target.SetModifiers(origin.GetModifiers());
+    target.SetHealth(origin.GetMaxHealth());
+    origin.Remove();
+    target.SetUser(user);
+}
+
+public void GibRevive(IUser user)
+{
+    IObject[] spawns = Game.GetObjectsByName("SpawnPlayer");
+    if (spawns.Length > 0)
+    {
+        IPlayer temp = Game.CreatePlayer(spawns[rand.Next(spawns.Length)].GetWorldPosition());
+        temp.SetProfile(user.GetProfile());
+        temp.SetTeam(user.GetTeam());
+        temp.SetUser(user);
+    }
+}
+
+private Random rand = new Random();
+private MapType map;
+private IUser user;
+public void OnStartup()
+{
+    Game.CreateObject("InvisibleBlock", new Vector2(0, 100000)).CustomID = "clip";
+    UpdateList();
+    map = Game.GetMapType();
+}
+
+public void AfterStartup()
+{
+    Events.UserMessageCallback.Start(Commands);
+    Events.PlayerDeathCallback.Start(OnPlayerDeath);
+    Events.PlayerKeyInputCallback.Start(OnPlayerKeyInput);
+    Events.ProjectileCreatedCallback.Start(OnProjectileCreated);
+    ExecuteCMD();
+}
+
+public void ExecuteCMD()
+{
+    string[] info;
+    if (Game.LocalStorage.TryGetItemStringArr("cmd", out info))
+    {
+        foreach (string i in info)
+        {
+            string[] temp = i.Split(' ');
+            ExecuteCommand(temp[0].ToUpper(), string.Join(" ", temp.Skip(1)), null);
+        }
+    }
+}
+
+public void OnProjectileCreated(IProjectile[] projectiles)
+{
+    foreach (IProjectile proj in projectiles)
+    {
+        if (Game.GetPlayer(proj.InitialOwnerPlayerID) != null)
+        {
+            Data data = Data.List.Find(x => x.user.Equals(Game.GetPlayer(proj.OwnerPlayerID).GetUser()));
+            if (data != null && !string.IsNullOrEmpty(data.bullet))
+            {
+                IPlayer ply = data.user.GetPlayer();
+                Game.CreateObject(data.bullet, ply.GetWorldPosition() + ply.AimVector * 30, 0, proj.Velocity / 40, 0).CustomId = "spawned";
+                proj.FlagForRemoval();
+            }
+        }
+    }
+}
+
+public void OnPlayerKeyInput(IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+    foreach (Data data in Data.List)
+    {
+        if (!player.IsDead && data.user.Equals(player.GetUser()))
+        {
+            if (player.KeyPressed(VirtualKey.WALKING) && data.noclip && !player.IsHoldingPlayerInGrab && !player.IsHoldingPlayerInDive)
+            {
+                data.clipping = !data.clipping;
+                if (data.clipping)
+                {
+                    player.SetInputMode(PlayerInputMode.ReadOnly);
+                    player.SetLinearVelocity(new Vector2(0, 0));
+                    player.SetNametagVisible(false);
+                    IObjectText text = (IObjectText)Game.CreateObject("BgText", player.GetWorldPosition());
+                    text.CustomId = "noclip" + player.GetUser().UserIdentifier.ToString();
+                    player.SetWorldPosition(Game.GetSingleObjectByCustomId("clip").GetWorldPosition() + new Vector2(0, 8));
+                    text.SetText(player.GetUser().Name);
+                    text.SetTextColor(Color.Red);
+                    text.SetTextAlignment(TextAlignment.Middle);
+                }
+                else
+                {
+                    player.SetInputMode(PlayerInputMode.Enabled);
+                    IObject obj = Game.GetSingleObjectByCustomId("noclip" + player.GetUser().UserIdentifier.ToString());
+                    player.SetWorldPosition(obj.GetWorldPosition());
+                    player.SetNametagVisible(true);
+                    obj.Remove();
+                }
+            }
+
+            if (data.clipping)
+            {
+                IObject obj = Game.GetSingleObjectByCustomId("noclip" + player.GetUser().UserIdentifier.ToString());
+                Vector2 pos = obj.GetWorldPosition();
+                if (player.KeyPressed(VirtualKey.AIM_RUN_LEFT))
+                    obj.SetWorldPosition(pos - new Vector2(20, 0));
+                else if (player.KeyPressed(VirtualKey.AIM_RUN_RIGHT))
+                    obj.SetWorldPosition(pos + new Vector2(20, 0));
+                else if (player.KeyPressed(VirtualKey.AIM_CLIMB_UP))
+                    obj.SetWorldPosition(pos + new Vector2(0, 16));
+                else if (player.KeyPressed(VirtualKey.AIM_CLIMB_DOWN))
+                    obj.SetWorldPosition(pos - new Vector2(0, 16));
+            }
+        }
+    }
+}
+
+public void OnPlayerDeath(IPlayer ply, PlayerDeathArgs args)
+{
+    Data data = Data.List.Find(x => x.user.Equals(ply.GetUser()));
+    if (data != null && data.revive)
+        data.reviveTimer.Trigger();
+}
+
+public int SpawnPos(IUser user, int identifier)
+{
+    return user.UserIdentifier == identifier ? 28 : 0;
+}
+
+public void RespawnON(IUser user)
+{
+    Data.List.Find(x => x.user.Equals(user)).revive = true;
+
+    if (user.GetPlayer() == null)
+        GibRevive(user);
+    else if (user.GetPlayer().IsDead)
+        DeadRevive(user);
+
+    if (Game.GetMapType() != MapType.Custom)
+        Game.SetMapType(MapType.Custom);
+}
+
+public void RespawnOFF(IUser user)
+{
+    Data.List.Find(x => x.user.Equals(user)).revive = false;
+
+    if (Data.List.All(x => !x.revive))
+        Game.SetMapType(map);
+}
+
+public Color GetTeamColor(PlayerTeam team)
+{
+    if (team == PlayerTeam.Team1)
+        return Color.Blue;
+    else if (team == PlayerTeam.Team2)
+        return Color.Red;
+    else if (team == PlayerTeam.Team3)
+        return Color.Green;
+    else if (team == PlayerTeam.Team4)
+        return Color.Yellow;
+    return Color.White;
+}
+
+readonly string[] commands = { "kill", "bullet", "trip", "noclip", "respawn", "gib", "revive", "input", "tp", "tm", "wep", "say", "hp", "sethp", "energy", "burn", "stun", "god", "size", "speed", "strength", "meleedmg", "wepdmg", "normal", "spawn" };
+public void Commands(UserMessageCallbackArgs args)
+{
+    if (args.IsCommand && (args.User.IsHost || (args.User.IsModerator && Convert.ToBoolean(Game.LocalStorage.GetItem("mods")))))
+    {
+        UpdateList();
+        switch (args.Command) // basic commands (no args)
+        {
+            case "COMMANDS":
+                Game.ShowChatMessage("Commands+:", Color.Magenta, args.User.UserIdentifier);
+                Game.ShowChatMessage("/commands - show commands list", Color.Green, args.User.UserIdentifier);
+                Game.ShowChatMessage("/info - show settings", Color.Green, args.User.UserIdentifier);
+                Game.ShowChatMessage("/mods - switch commands access for mods", Color.Green, args.User.UserIdentifier);
+                Game.ShowChatMessage("/log - switch commands log", Color.Green, args.User.UserIdentifier);
+                Game.ShowChatMessage("/speech - switch speech bubbles", Color.Green, args.User.UserIdentifier);
+                Game.ShowChatMessage("/resetSTR - reset storage", Color.Green, args.User.UserIdentifier);
+
+                Game.ShowChatMessage("/cmd <command> - show all automatic commands", Color.Blue, args.User.UserIdentifier);
+                Game.ShowChatMessage("/excmd - execute automatic commands", Color.Blue, args.User.UserIdentifier);
+                Game.ShowChatMessage("/addcmd <index> <command> - add automatic command", Color.Blue, args.User.UserIdentifier);
+                Game.ShowChatMessage("/removecmd <index> - remove automatic command", Color.Blue, args.User.UserIdentifier);
+                Game.ShowChatMessage("/clearcmd - clear all automatic commands", Color.Blue, args.User.UserIdentifier);
+
+                Game.ShowChatMessage("/noclip <player> <1/0> - noclip", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/respawn <player> <1/0> - players will respawn", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/bullet <player> - reset bullets", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/bullet <player> <id> - custom bullets", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/kill <player> - kill the player", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/gib <player> - gib the player", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/revive <player> <pos> - revive the player if dead", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/input <player> <1/0> - disable/enable player's inputs", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/tp <player> <player> - teleport a player to another player", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/tm <player> <team> - change player's team", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/trip <player> - make player fall", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/wep <player> <weapons> - give player weapons", Color.Red, args.User.UserIdentifier);
+                Game.ShowChatMessage("/say <player> <an-example> - create a dialogue above the player", Color.Red, args.User.UserIdentifier);
+
+                Game.ShowChatMessage("/hp <player> restore player's hp", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/sethp <player> <amount> - set player's hp", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/energy <player> <1/0> - give infinite energy", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/burn <player> <1/0> - player can burn", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/stun <player> <1/0> - player has stun immunity", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/god <player> <1/0> - infinite health", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/size <player> <0,75/1,25> - change player's size", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/speed <player> <0,5/2>- change player's speed", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/strength <player> <1/10> - change player's melee force", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/meleedmg <player> <1/100> - change player's damage", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/wepdmg <player> <1/100> - change player's damage", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/normal <player> - restore player modifiers", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/spawn <player> <object> <count> - spawn objects", Color.Yellow, args.User.UserIdentifier);
+                Game.ShowChatMessage("/remove - remove all spawned objects", Color.Yellow, args.User.UserIdentifier);
+
+                Game.ShowChatMessage("/players check players' IDs", Color.Cyan, args.User.UserIdentifier);
+                Game.ShowChatMessage("TIP: You can use 'all' or listen multiple players per command (/revive 1,5,3)", Color.Cyan, args.User.UserIdentifier);
+                break;
+
+            case "INFO":
+                Game.ShowChatMessage("MODS: " + Convert.ToBoolean(Game.LocalStorage.GetItem("mods")), Color.Magenta, args.User.UserIdentifier);
+                Game.ShowChatMessage("LOG: " + Convert.ToBoolean(Game.LocalStorage.GetItem("log")), Color.Magenta, args.User.UserIdentifier);
+                Game.ShowChatMessage("SPEECH: " + Convert.ToBoolean(Game.LocalStorage.GetItem("speech")), Color.Magenta, args.User.UserIdentifier);
+                break;
+
+            case "REMOVE":
+                foreach (IObject obj in Game.GetObjectsByCustomId("spawned"))
+                    obj.Remove();
+                Game.ShowChatMessage("Spawned objects removed", args.User.UserIdentifier);
+                break;
+
+            case "MODS":
+                if (args.User.IsHost)
+                    Game.LocalStorage.SetItem("mods", !Convert.ToBoolean(Game.LocalStorage.GetItem("mods")));
+                break;
+
+            case "LOG":
+                if (args.User.IsHost)
+                    Game.LocalStorage.SetItem("log", !Convert.ToBoolean(Game.LocalStorage.GetItem("log")));
+                break;
+
+            case "SPEECH":
+                Game.LocalStorage.SetItem("speech", !Convert.ToBoolean(Game.LocalStorage.GetItem("speech")));
+                break;
+
+            case "RESETSTR":
+                if (args.User.IsHost)
+                {
+                    Game.LocalStorage.Clear();
+                    Game.ShowChatMessage("RESET STORAGE", Color.Red);
+                }
+                break;
+
+            case "CMD":
+                int count = 0;
+                string[] info;
+                if (Game.LocalStorage.TryGetItemStringArr("cmd", out info))
+                {
+                    foreach (string i in info)
+                        Game.ShowChatMessage(count++ + ": " + i, Color.Yellow, args.User.UserIdentifier);
+                }
+                break;
+
+            case "ADDCMD":
+                if (args.CommandArguments.Split(' ').Length >= 2)
+                { // index command players attributes
+                    string[] ex;
+                    if (!Game.LocalStorage.TryGetItemStringArr("cmd", out ex))
+                    {
+                        string[] cmds1 = args.CommandArguments.Split(' ');
+                        string[] players1 = args.CommandArguments.Split(',').Length > 1 ? cmds1[1].Split(',') : new string[] { cmds1[1] };
+                        if (args.User.IsHost && commands.Contains(cmds1[0].ToLower()) && Match(players1).Length > 0)
+                        {
+                            string[] ex1;
+                            if (Game.LocalStorage.TryGetItemStringArr("cmd", out ex1))
+                                Game.LocalStorage.SetItem("cmd", ex1.Concat(new string[] { cmds1[0] + ' ' + string.Join(" ", cmds1.Skip(1)) }).ToArray());
+                            else
+                                Game.LocalStorage.SetItem("cmd", new string[] { cmds1[0] + ' ' + string.Join(" ", cmds1.Skip(1)) }.ToArray());
+                        }
+                    }
+                    else
+                    {
+                        if (args.CommandArguments.Split(' ').Length >= 3)
+                        {
+                            string[] cmds = args.CommandArguments.Split(' ');
+                            int index;
+                            if (!int.TryParse(cmds[0], out index))
+                                return;
+                            string[] players = args.CommandArguments.Split(',').Length > 1 ? cmds[2].Split(',') : new string[] { cmds[2] };
+
+                            if (commands.Contains(cmds[1].ToLower()) && Match(players).Length > 0 && index >= 0 && index <= ex.Length)
+                            {
+                                if (Game.LocalStorage.TryGetItemStringArr("cmd", out ex))
+                                {
+                                    List<string> temp = ex.ToList();
+                                    temp.Insert(index, cmds[1] + ' ' + string.Join(" ", cmds.Skip(2)));
+                                    Game.LocalStorage.SetItem("cmd", temp.ToArray());
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case "REMOVECMD":
+                if (!string.IsNullOrEmpty(args.CommandArguments.Split(' ')[0]))
+                {
+                    string[] rex;
+                    int index;
+                    if (Game.LocalStorage.TryGetItemStringArr("cmd", out rex) && int.TryParse(args.CommandArguments.Split(' ')[0], out index) && index >= 0 && index < rex.Length)
+                    {
+                        List<string> temp = rex.ToList();
+                        temp.RemoveAt(index);
+                        Game.LocalStorage.SetItem("cmd", temp.ToArray());
+                    }
+                }
+                break;
+
+            case "EXCMD":
+                ExecuteCMD();
+                break;
+
+            case "CLEARCMD":
+                Game.LocalStorage.SetItem("cmd", string.Empty);
+                break;
+        }
+        if (!string.IsNullOrEmpty(args.CommandArguments.Split(' ')[0]))
+            ExecuteCommand(args.Command, args.CommandArguments, args.User);
+    }
+    else if (!args.IsCommand && Convert.ToBoolean(Game.LocalStorage.GetItem("speech")) && args.User.GetPlayer() != null)
+    {
+        IPlayer ply = args.User.GetPlayer();
+        Game.CreateDialogue(args.Message, GetTeamColor(ply.GetTeam()), ply, "", 3500, false);
+    }
+}
+
+public void ExecuteCommand(string command, string args, IUser root)
+{
+    bool flag = false;
+    string[] cmds = args.Split(' ');
+    string[] players = args.Split(',').Length > 1 ? cmds[0].Split(',') : new string[] { cmds[0] };
+    foreach (IUser user in Match(players))
+    {
+        if (user.GetPlayer() != null) // alive players commands (1 arg)
+        {
+            IPlayer ply = user.GetPlayer();
+            Data data;
+            if (cmds.Length == 1)
+            {
+                switch (command)
+                {
+                    case "BULLET":
+                        data = Data.List.Find(x => x.user.Equals(user));
+                        if (!string.IsNullOrEmpty(data.bullet))
+                            data.bullet = string.Empty;
+                        break;
+
+                    case "HP":
+                        ply.SetHealth(ply.GetMaxHealth());
+                        break;
+
+                    case "KILL":
+                        if (!ply.IsDead)
+                            ply.Kill();
+                        break;
+
+                    case "GIB":
+                        ply.Gib();
+                        break;
+
+                    case "NORMAL":
+                        ply.ClearModifiers();
+                        break;
+
+                    case "REVIVE":
+                        if (ply.IsDead)
+                            DeadRevive(ply.GetUser());
+                        break;
+
+                    case "TRIP":
+                        data = Data.List.Find(x => x.user.Equals(ply.GetUser()));
+                        if (!ply.IsDead)
+                        {
+                            data.trip = ply.GetModifiers();
+                            PlayerModifiers temp = ply.GetModifiers();
+                            temp.ProjectileDamageTakenModifier = 0;
+                            temp.ProjectileCritChanceTakenModifier = 100;
+                            ply.SetModifiers(temp);
+                            Game.SpawnProjectile(ProjectileItem.SILENCEDPISTOL, ply.GetWorldPosition() + new Vector2(0, 8), new Vector2(0, -1));
+
+                            if (!data.tripTimer.IsTimerRunning)
+                                data.tripTimer.Trigger();
+                        }
+                        break;
+                }
+            }
+            else if (cmds.Length >= 2)
+            {
+                int special;
+                float modifiers;
+                switch (command)
+                {
+                    case "BULLET":
+                        IObject temp = Game.CreateObject(cmds[1]);
+                        if (temp.Name != "error")
+                            Data.List.Find(x => x.user.Equals(user)).bullet = cmds[1];
+                        temp.Remove();
+                        break;
+
+                    case "REVIVE":
+                        if (ply.IsDead)
+                        {
+                            foreach (IPlayer ply2 in Match(new string[] { cmds[1] }).Select(x => x.GetPlayer()))
+                                ply.SetWorldPosition(ply2.GetWorldPosition());
+                            DeadRevive(ply.GetUser());
+                        }
+                        break;
+
+                    case "RESPAWN":
+                        if (!Data.List.Find(x => x.user.Equals(user)).revive && (cmds[1] == "1" || cmds[1] == "true"))
+                            RespawnON(user);
+                        else if (Data.List.Find(x => x.user.Equals(user)).revive && (cmds[1] == "0" || cmds[1] == "false"))
+                            RespawnOFF(user);
+                        break;
+
+                    case "NOCLIP":
+                        data = Data.List.Find(x => x.user.Equals(user));
+                        if (!data.noclip && (cmds[1] == "1" || cmds[1] == "true"))
+                            data.noclip = true;
+                        else if (data.noclip && (cmds[1] == "0" || cmds[1] == "false"))
+                            data.noclip = false;
+                        break;
+
+                    case "SAY":
+                        Game.CreateDialogue(args.Substring(args.IndexOf(cmds[0]) + cmds[0].Length), GetTeamColor(ply.GetTeam()), ply, "", 3500, false);
+                        break;
+
+                    case "INPUT":
+                        if (!ply.IsInputEnabled && (cmds[1] == "1" || cmds[1] == "true"))
+                            ply.SetInputEnabled(true);
+                        else if (ply.IsInputEnabled && (cmds[1] == "0" || cmds[1] == "false"))
+                            ply.SetInputEnabled(false);
+                        break;
+
+                    case "TP":
+                        foreach (IPlayer ply2 in Match(new string[] { cmds[1] }).Select(x => x.GetPlayer()))
+                            ply.SetWorldPosition(ply2.GetWorldPosition());
+                        break;
+
+                    case "SPAWN":
+                        if (root != null && root.IsHost && cmds.Length == 3)
+                        {
+                            if (int.TryParse(cmds[2], out special) && special > 0)
+                            {
+                                for (int i = 0; i < special; i++)
+                                    Game.CreateObject(cmds[1], ply.GetWorldPosition() + new Vector2(ply.FacingDirection * SpawnPos(root, ply.GetUser().UserIdentifier), 4)).CustomId = "spawned";
+                            }
+                        }
+                        else
+                            Game.CreateObject(cmds[1], ply.GetWorldPosition() + new Vector2(ply.FacingDirection * SpawnPos(root, ply.GetUser().UserIdentifier), 4)).CustomId = "spawned";
+
+                        foreach (IObject obj in Game.GetObjectsByCustomId("spawned"))
+                        {
+                            if (obj.Name == "error")
+                                obj.Remove();
+                        }
+                        break;
+
+                    case "TM":
+                        if (int.TryParse(cmds[1], out special) && special >= 0 && special <= 4)
+                            ply.SetTeam((PlayerTeam)special);
+                        break;
+
+                    case "SETHP":
+                        if (int.TryParse(cmds[1], out special))
+                            ply.SetModifiers(new PlayerModifiers { CurrentHealth = special, MaxHealth = special });
+                        break;
+
+                    case "ENERGY":
+                        if (cmds[1] == "1" || cmds[1] == "true")
+                            ply.SetModifiers(new PlayerModifiers { EnergyConsumptionModifier = -2 });
+                        else if (cmds[1] == "0" || cmds[1] == "false")
+                            ply.SetModifiers(new PlayerModifiers { EnergyConsumptionModifier = 0 });
+                        break;
+
+                    case "GOD":
+                        if (cmds[1] == "1" || cmds[1] == "true")
+                            ply.SetModifiers(new PlayerModifiers { ExplosionDamageTakenModifier = 0, FireDamageTakenModifier = 0, ImpactDamageTakenModifier = 0, MeleeDamageTakenModifier = 0, ProjectileDamageTakenModifier = 0 });
+                        else if (cmds[1] == "0" || cmds[1] == "false")
+                            ply.SetModifiers(new PlayerModifiers { ExplosionDamageTakenModifier = -2, FireDamageTakenModifier = -2, ImpactDamageTakenModifier = -2, MeleeDamageTakenModifier = -2, ProjectileDamageTakenModifier = -2 });
+                        break;
+
+                    case "BURN":
+                        if (cmds[1] == "1" || cmds[1] == "true")
+                            ply.SetModifiers(new PlayerModifiers { CanBurn = -2 });
+                        else if (cmds[1] == "0" || cmds[1] == "false")
+                            ply.SetModifiers(new PlayerModifiers { CanBurn = 0 });
+                        break;
+
+                    case "STUN":
+                        if (cmds[1] == "1" || cmds[1] == "true")
+                            ply.SetModifiers(new PlayerModifiers { MeleeStunImmunity = -2 });
+                        else if (cmds[1] == "0" || cmds[1] == "false")
+                            ply.SetModifiers(new PlayerModifiers { MeleeStunImmunity = 1 });
+                        break;
+
+                    case "WEP":
+                        for (int i = 1; i <= cmds.Length - 1; i++)
+                        {
+                            if (int.TryParse(cmds[i], out special))
+                                ply.GiveWeaponItem((WeaponItem)special);
+                        }
+                        break;
+
+                    case "SIZE":
+                        if (float.TryParse(cmds[1], out modifiers))
+                            ply.SetModifiers(new PlayerModifiers { SizeModifier = modifiers });
+                        break;
+
+                    case "SPEED":
+                        if (float.TryParse(cmds[1], out modifiers))
+                            ply.SetModifiers(new PlayerModifiers { SprintSpeedModifier = modifiers, RunSpeedModifier = modifiers });
+                        break;
+
+                    case "STRENGTH":
+                        if (float.TryParse(cmds[1], out modifiers))
+                            ply.SetModifiers(new PlayerModifiers { MeleeForceModifier = modifiers });
+                        break;
+
+                    case "MELEEDMG":
+                        if (float.TryParse(cmds[1], out modifiers))
+                            ply.SetModifiers(new PlayerModifiers { MeleeDamageDealtModifier = modifiers });
+                        break;
+
+                    case "WEPDMG":
+                        if (float.TryParse(cmds[1], out modifiers))
+                            ply.SetModifiers(new PlayerModifiers { ProjectileDamageDealtModifier = modifiers });
+                        break;
+                }
+            }
+        }
+        else // removed players commands (1 arg)
+        {
+            if (cmds.Length == 1)
+            {
+                switch (command)
+                {
+                    case "REVIVE":
+                        GibRevive(user);
+                        break;
+                }
+            }
+            else if (cmds.Length >= 2) // two args commands (or greater)
+            {
+                switch (command) // global commands (with players) (2 args)
+                {
+                    case "REVIVE":
+                        GibRevive(user);
+                        foreach (IPlayer ply2 in Match(new string[] { cmds[1] }).Select(x => x.GetPlayer()))
+                            user.GetPlayer().SetWorldPosition(ply2.GetWorldPosition());
+                        break;
+
+                    case "RESPAWN":
+                        if (!Data.List.Find(x => x.user.Equals(user)).revive && (cmds[1] == "1" || cmds[1] == "true"))
+                            RespawnON(user);
+                        else if (Data.List.Find(x => x.user.Equals(user)).revive && (cmds[1] == "0" || cmds[1] == "false"))
+                            RespawnOFF(user);
+                        break;
+                }
+            }
+        }
+        if (commands.Contains(command.ToLower()) && Convert.ToBoolean(Game.LocalStorage.GetItem("log")))
+        {
+            if (root != null)
+            {
+                if (Match(players).Length < Game.GetActiveUsers().Length)
+                    Game.ShowChatMessage(root.Name + ": " + command + ' ' + user.Name);
+                else
+                    flag = true;
+            }
+        }
+    }
+    if (flag)
+        Game.ShowChatMessage(root.Name + ": " + command + " ALL", Color.Green);
+}

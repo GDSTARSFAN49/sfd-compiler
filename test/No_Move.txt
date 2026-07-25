@@ -1,0 +1,36 @@
+Vector2[] pos;
+public void AfterStartup(){
+	pos = new Vector2[Game.GetPlayers().Count()];
+	for(int i = 0; i < Game.GetPlayers().Count(); i++){
+		Game.GetPlayers()[i].GiveWeaponItem(WeaponItem.BOW);
+		
+	}
+	
+	CreateTimer(10000,0,"update2","0");
+	CreateTimer(1000, 1, "update3", "0");
+	
+
+	Game.RunCommand("/ia 1");
+}
+
+public void update(TriggerArgs args){
+	for(int i = 0; i < Game.GetPlayers().Count(); i++) if(Game.GetPlayers()[i] != null){
+		Game.GetPlayers()[i].SetWorldPosition(pos[i]);
+		
+	}
+}
+public void update2(TriggerArgs args){
+		for(int i = 0; i < Game.GetPlayers().Count(); i++) if(Game.GetPlayers()[i] != null)Game.GetPlayers()[i].GiveWeaponItem(WeaponItem.BOUNCINGAMMO);
+}
+public void update3(TriggerArgs args){
+		for(int i = 0; i < Game.GetPlayers().Count(); i++) if(Game.GetPlayers()[i] != null)pos[i] = Game.GetPlayers()[i].GetWorldPosition();
+			CreateTimer(100,0,"update","0");
+}
+public void CreateTimer(int interval, int count, string method, string id) {
+	IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger"); 
+	timerTrigger.SetIntervalTime(interval);
+	timerTrigger.SetRepeatCount(count);
+	timerTrigger.SetScriptMethod(method);
+	timerTrigger.CustomId = id;
+	timerTrigger.Trigger();
+}

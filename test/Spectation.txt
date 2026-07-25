@@ -1,0 +1,190 @@
+string[] SpectatorAccountNames;
+int SpectatorIndex;
+public void OnStartup() {
+  Events.UserMessageCallback.Start(OnUserMessage);
+  if (Game.LocalStorage.HasData()) {
+    Game.LocalStorage.TryGetItemStringArr("AccountNames", out SpectatorAccountNames);
+    Game.LocalStorage.TryGetItemInt("GameSlotIndex", out SpectatorIndex);
+    foreach(IUser user in Game.GetActiveUsers()) {
+      if (user.GameSlotIndex + 1 == SpectatorIndex) {
+        IPlayer player = user.GetPlayer();
+        player.SetUser(null);
+        player.Remove();
+        Game.ShowChatMessage("SPECTATING", user.UserIdentifier);
+      }
+      for (int i = 0; i < SpectatorAccountNames.Length; i++) {
+        if (user.AccountName == SpectatorAccountNames[i]) {
+          IPlayer player = user.GetPlayer();
+          player.SetUser(null);
+          player.Remove();
+          Game.ShowChatMessage("SPECTATING", user.UserIdentifier);
+        }
+      }
+    }
+  }
+}
+public void OnUserMessage(UserMessageCallbackArgs args) {
+  if (args.IsCommand && args.Command != String.Empty) {
+    switch (args.Command) {
+    case "SPECTATE":
+      string acc = args.User.AccountName;
+      if (Game.LocalStorage.HasData()) {
+        for (int i = 0; i < SpectatorAccountNames.Length; i++) {
+          if (args.User.AccountName == SpectatorAccountNames[i]) {
+            List < string > acclist = new List < string > (SpectatorAccountNames);
+            acclist.RemoveAt(i);
+            SpectatorAccountNames = acclist.ToArray();
+            Game.LocalStorage.SetItem("AccountNames", SpectatorAccountNames);
+            Game.ShowChatMessage("You will no longer spectate the following matches.", Color.Red, args.User.UserIdentifier);
+            return;
+          }
+        }
+        Array.Resize(ref SpectatorAccountNames, SpectatorAccountNames.Length + 1);
+        SpectatorAccountNames[SpectatorAccountNames.Length - 1] = acc;
+        Game.LocalStorage.SetItem("AccountNames", SpectatorAccountNames);
+      } else {
+        Game.LocalStorage.SetItem("AccountNames", new string[] {
+          acc
+        });
+      }
+      Game.ShowChatMessage("You will now spectate the following matches.", Color.Green, args.User.UserIdentifier);
+      break;
+    case "CLEARSPECTATE":
+      if (args.User.IsHost || args.User.IsModerator || Game.IsEditorTest) {
+        if (Game.LocalStorage.HasData()) {
+          Game.LocalStorage.Clear();
+          Game.ShowChatMessage("Spectators and the spectator game slot have been cleared.", Color.Green, args.User.UserIdentifier);
+        } else {
+          Game.ShowChatMessage("There's no spectators or spectator game slot set!", Color.Red, args.User.UserIdentifier);
+        }
+      } else {
+        Game.ShowChatMessage("You don't have permission to execute this command!", Color.Red, args.User.UserIdentifier);
+      }
+      break;
+    case "SPECTATE-TOGGLE":
+      if (args.User.IsHost || args.User.IsModerator || Game.IsEditorTest) {
+        if (args.CommandArguments != String.Empty) {
+          acc = args.CommandArguments;
+          if (Game.LocalStorage.HasData()) {
+            for (int i = 0; i < SpectatorAccountNames.Length; i++) {
+              if (acc == SpectatorAccountNames[i]) {
+                List < string > acclist = new List < string > (SpectatorAccountNames);
+                acclist.RemoveAt(i);
+                SpectatorAccountNames = acclist.ToArray();
+                Game.LocalStorage.SetItem("AccountNames", SpectatorAccountNames);
+                Game.ShowChatMessage("User with account " + acc + " will no longer spectate the following matches.", Color.Red, args.User.UserIdentifier);
+                return;
+              }
+            }
+            Array.Resize(ref SpectatorAccountNames, SpectatorAccountNames.Length + 1);
+            SpectatorAccountNames[SpectatorAccountNames.Length - 1] = acc;
+            Game.LocalStorage.SetItem("AccountNames", SpectatorAccountNames);
+          } else {
+            Game.LocalStorage.SetItem("AccountNames", new string[] {
+              acc
+            });
+          }
+          Game.ShowChatMessage("User with account " + acc + " will now spectate the following matches.", Color.Green, args.User.UserIdentifier);
+        } else {
+          Game.ShowChatMessage("You need to provide an account name!", Color.Red, args.User.UserIdentifier);
+        }
+      } else {
+        Game.ShowChatMessage("You don't have permission to execute this command!", Color.Red, args.User.UserIdentifier);
+      }
+      break;
+    case "SPECTATE-FORCETOGGLE":
+      if (args.User.IsHost || args.User.IsModerator || Game.IsEditorTest) {
+        if (args.CommandArguments != String.Empty) {
+          acc = args.CommandArguments;
+          foreach(IUser user in Game.GetActiveUsers()) {
+            if (user.AccountName == acc) {
+              if (!user.IsRemoved) {
+                try {
+                  IPlayer player = user.GetPlayer();
+                  player.SetUser(null);
+                  Game.PlayEffect("DestroyDefault", player.GetWorldPosition());
+                  player.Remove();
+                  Game.ShowChatMessage("SPECTATING", user.UserIdentifier);
+                  if (Game.LocalStorage.HasData()) {
+                    Array.Resize(ref SpectatorAccountNames, SpectatorAccountNames.Length + 1);
+                    SpectatorAccountNames[SpectatorAccountNames.Length - 1] = acc;
+                    Game.LocalStorage.SetItem("AccountNames", SpectatorAccountNames);
+                  } else {
+                    Game.LocalStorage.SetItem("AccountNames", new string[] {
+                      acc
+                    });
+                  }
+                  Game.ShowChatMessage("User with account " + acc + " is now an spectator.", Color.Green, args.User.UserIdentifier);
+                  return;
+                } catch (Exception ex) {
+                  //Game.WriteToConsole("SPECTATION:", ex.Message);
+                }
+              }
+              try {
+                IObject[] sp = Game.GetObjectsByName("SpawnPlayer");
+                Random random = new Random();
+                int sprnd = random.Next(0, sp.Length);
+                IPlayer ply = (IPlayer) Game.CreatePlayer(sp[sprnd].GetWorldPosition() - new Vector2(0, 8));
+                ply.SetUser(user);
+                ply.SetProfile(user.GetProfile());
+                ply.SetTeam(user.GetTeam());
+                Game.PlayEffect("DestroyDefault", ply.GetWorldPosition());
+              } catch (Exception ex) {
+                //Game.WriteToConsole("SPECTATION:", ex.Message);
+                IPlayer ply = (IPlayer) Game.CreatePlayer(Vector2.Zero);
+                ply.SetUser(user);
+                ply.SetProfile(user.GetProfile());
+                ply.SetTeam(user.GetTeam());
+                Game.PlayEffect("DestroyDefault", ply.GetWorldPosition());
+              }
+              if (Game.LocalStorage.HasData()) {
+                for (int i = 0; i < SpectatorAccountNames.Length; i++) {
+                  if (acc == SpectatorAccountNames[i]) {
+                    List < string > acclist = new List < string > (SpectatorAccountNames);
+                    acclist.RemoveAt(i);
+                    SpectatorAccountNames = acclist.ToArray();
+                    Game.LocalStorage.SetItem("AccountNames", SpectatorAccountNames);
+                  }
+                }
+              }
+              Game.ShowChatMessage("User with account " + acc + " is no longer an spectator.", Color.Red, args.User.UserIdentifier);
+              return;
+            }
+          }
+        } else {
+          Game.ShowChatMessage("You need to provide an account name!", Color.Red, args.User.UserIdentifier);
+        }
+      } else {
+        Game.ShowChatMessage("You don't have permission to execute this command!", Color.Red, args.User.UserIdentifier);
+      }
+      break;
+    case "SPECTATORGAMESLOT":
+      if (args.User.IsHost || args.User.IsModerator || Game.IsEditorTest) {
+        if (args.CommandArguments != String.Empty) {
+          string arggs = args.CommandArguments;
+          int index;
+          if (int.TryParse(arggs, out index)) {
+            if (index < 1 || index > 8) {
+              Game.ShowChatMessage("Index cannot be higher than 8 or less than 1!", Color.Red, args.User.UserIdentifier);
+              return;
+            }
+            if (Game.LocalStorage.HasData()) {
+              Game.LocalStorage.SetItem("GameSlotIndex", index);
+            } else {
+              Game.LocalStorage.SetItem("GameSlotIndex", index);
+              Game.LocalStorage.SetItem("AccountNames", new string[] {
+                "\0"
+              });
+            }
+            Game.ShowChatMessage("The game slot " + index + " is now the spectator game slot.", Color.Green, args.User.UserIdentifier);
+          }
+        } else {
+          Game.ShowChatMessage("You need to provide an index!", Color.Red, args.User.UserIdentifier);
+        }
+      } else {
+        Game.ShowChatMessage("You don't have permission to execute this command!", Color.Red, args.User.UserIdentifier);
+      }
+      break;
+    }
+  }
+}

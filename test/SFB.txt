@@ -1,0 +1,697 @@
+//PLAYER LIVES 1 == NO RESPAWN 
+//														DEFAULT:1
+static int D_LIVES 								= 1;
+
+//DAMAGE MULTIPLIER
+//														DEFAULT:1
+static int D_MULTIPLIER 						= 1;
+
+//MAX DAMAGE
+//														DEFAULT:999
+static double D_MAX_DAMAGE					= 999;
+
+//TIME BEFORE RESPAWN
+//														DEFAULT:300
+static int D_RESPAWN_FRAMES 					= 300;
+
+//TIME BEFORE PLAYERS CAN BE DAMAGED
+//														DEFAULT:120
+static int D_INVINCIBLE_FRAMES 				= 120;
+
+//FINAL SMASHES ENABLED?
+//														DEFAULT:0
+static int D_FINAL_SMASHES					= 0;
+
+
+static float Top = 0;
+static float Bottom = 0;
+static float Left = 0;
+static float Right = 0;
+static Random rnd = new Random();
+IList<Fighter> Fighters = new List<Fighter>();
+
+Events.UserMessageCallback m_userMessageCallback = null;
+
+//Smash Ball image
+static Sprite spr_SmashBall = new Sprite("","0,16,255,255,255|0,15,255,255,255|0,14,255,255,255|0,13,255,255,255|0,12,255,255,255|0,11,255,255,255|0,10,255,255,255|0,9,255,255,255|0,8,255,255,255|0,7,255,255,255|0,6,255,255,255|0,5,255,255,255|0,4,255,255,255|0,3,255,255,255|0,2,255,255,255|0,1,255,255,255|1,16,255,255,255|1,15,255,255,255|1,14,255,255,255|1,13,255,255,255|1,12,36,41,108|1,11,77,17,177|1,10,92,16,215|1,9,91,20,192|1,8,92,28,176|1,7,47,9,127|1,6,37,10,116|1,5,59,51,106|1,4,255,255,255|1,3,255,255,255|1,2,255,255,255|1,1,255,255,255|2,16,255,255,255|2,15,255,255,255|2,14,255,255,255|2,13,23,27,71|2,12,67,24,170|2,11,81,17,192|2,10,81,10,186|2,9,134,27,231|2,8,120,46,143|2,7,88,30,125|2,6,118,35,207|2,5,55,13,131|2,4,8,0,87|2,3,255,255,255|2,2,255,255,255|2,1,255,255,255|3,16,255,255,255|3,15,255,255,255|3,14,41,95,96|3,13,90,53,166|3,12,99,35,174|3,11,107,34,178|3,10,139,47,199|3,9,187,82,222|3,8,106,60,110|3,7,84,41,91|3,6,141,50,199|3,5,107,30,183|3,4,59,15,145|3,3,18,14,63|3,2,255,255,255|3,1,255,255,255|4,16,255,255,255|4,15,58,172,117|4,14,52,58,59|4,13,45,32,33|4,12,34,12,18|4,11,29,10,14|4,10,23,12,10|4,9,15,14,7|4,8,4,6,3|4,7,4,3,2|4,6,12,8,11|4,5,13,4,28|4,4,17,4,50|4,3,10,0,77|4,2,60,59,127|4,1,255,255,255|5,16,194,247,217|5,15,46,102,66|5,14,49,34,29|5,13,40,10,12|5,12,34,2,7|5,11,29,2,6|5,10,23,0,3|5,9,13,0,0|5,8,5,0,1|5,7,1,0,1|5,6,0,0,0|5,5,0,0,5|5,4,2,0,21|5,3,18,2,76|5,2,30,3,187|5,1,147,158,180|6,16,159,218,158|6,15,66,69,46|6,14,53,26,32|6,13,50,18,25|6,12,50,17,22|6,11,50,17,21|6,10,48,17,20|6,9,41,16,17|6,8,22,7,9|6,7,7,4,4|6,6,5,12,4|6,5,8,12,6|6,4,15,9,20|6,3,15,3,43|6,2,23,2,117|6,1,188,182,226|7,16,196,171,94|7,15,217,110,114|7,14,213,84,160|7,13,216,99,199|7,12,219,125,210|7,11,219,163,214|7,10,219,172,214|7,9,230,184,226|7,8,124,111,116|7,7,100,89,94|7,6,221,153,224|7,5,190,91,211|7,4,151,65,194|7,3,73,23,145|7,2,25,0,108|7,1,134,126,175|8,16,247,155,58|8,15,254,98,84|8,14,243,31,90|8,13,248,46,150|8,12,255,78,211|8,11,255,149,254|8,10,255,170,255|8,9,255,167,255|8,8,142,116,137|8,7,121,73,115|8,6,255,78,255|8,5,184,31,254|8,4,107,20,198|8,3,62,12,150|8,2,41,2,131|8,1,111,110,158|9,16,255,218,133|9,15,255,139,85|9,14,252,41,70|9,13,250,39,104|9,12,255,68,167|9,11,255,117,230|9,10,255,146,253|9,9,255,148,255|9,8,137,102,135|9,7,116,60,112|9,6,247,67,255|9,5,190,34,255|9,4,110,22,196|9,3,70,13,159|9,2,45,3,133|9,1,135,133,178|10,16,252,250,205|10,15,255,205,132|10,14,254,81,80|10,13,249,27,72|10,12,252,53,126|10,11,255,74,170|10,10,255,94,201|10,9,255,115,228|10,8,136,86,134|10,7,117,50,113|10,6,232,56,255|10,5,165,30,246|10,4,95,19,183|10,3,89,18,178|10,2,48,3,130|10,1,147,158,180|11,16,255,255,255|11,15,255,247,173|11,14,255,167,120|11,13,252,47,67|11,12,243,34,76|11,11,249,52,115|11,10,255,62,141|11,9,255,77,176|11,8,149,66,129|11,7,133,39,118|11,6,181,39,199|11,5,97,21,164|11,4,122,65,161|11,3,75,75,124|11,2,112,143,148|11,1,255,255,255|12,16,255,255,255|12,15,255,255,255|12,14,255,238,123|12,13,255,164,121|12,12,250,50,64|12,11,240,34,61|12,10,241,44,85|12,9,255,52,117|12,8,169,49,108|12,7,154,37,110|12,6,179,34,122|12,5,177,97,126|12,4,141,160,109|12,3,86,203,99|12,2,255,255,255|12,1,255,255,255|13,16,255,255,255|13,15,255,255,255|13,14,255,255,255|13,13,255,252,152|13,12,255,192,134|13,11,253,97,82|13,10,244,48,53|13,9,248,46,69|13,8,181,42,81|13,7,174,71,103|13,6,255,151,139|13,5,175,192,93|13,4,68,220,45|13,3,255,255,255|13,2,255,255,255|13,1,255,255,255|14,16,255,255,255|14,15,255,255,255|14,14,255,255,255|14,13,255,255,255|14,12,255,254,147|14,11,255,223,104|14,10,255,163,84|14,9,255,142,75|14,8,224,139,79|14,7,210,170,81|14,6,169,215,61|14,5,111,231,64|14,4,255,255,255|14,3,255,255,255|14,2,255,255,255|14,1,255,255,255|15,16,255,255,255|15,15,255,255,255|15,14,255,255,255|15,13,255,255,255|15,12,255,255,255|15,11,248,252,204|15,10,254,240,137|15,9,254,218,99|15,8,233,206,78|15,7,210,235,119|15,6,210,249,183|15,5,255,255,255|15,4,255,255,255|15,3,255,255,255|15,2,255,255,255|15,1,255,255,255|");
+static Image img_SmashBall;
+
+public class Fighter{
+	IPlayer Player;
+	IUser User;	
+	double Damage = 0;
+	IObjectText Hud;
+	bool IsHit = false;
+	bool WasRocketRiding = false;
+	int ResFrames = D_RESPAWN_FRAMES;
+	int InvFrames = 0;
+	int Lives = D_LIVES;
+	bool IsSmashed = false;
+	int effectTimer = 0;
+
+	public Fighter(IPlayer input_player){
+		Player = input_player;	
+		User = input_player.GetUser();	
+
+		Player.SetStatusBarsVisible(false);
+
+		PlayerModifiers stats = Player.GetModifiers();
+		stats.MaxHealth = 9999;
+		stats.CurrentHealth = (stats.MaxHealth - 100);
+		Player.SetModifiers(stats);
+
+		Hud = (IObjectText)Game.CreateObject("Text");
+		Hud.SetTextAlignment(TextAlignment.Middle);
+		Hud.SetTextScale(0.5f);
+	}
+	public void Step(){
+		if(User != null){
+			chkNULL();
+		}
+		if(Player != null && !Player.IsDead && !Player.IsRemoved){
+			PlayerModifiers stats = Player.GetModifiers();
+			if(stats.CurrentHealth < stats.MaxHealth - 100 && InvFrames <= 0){
+				Damage += ((stats.MaxHealth - 100) - stats.CurrentHealth) * D_MULTIPLIER;
+			}else if(stats.CurrentHealth > stats.MaxHealth - 100){
+				Damage -= (stats.CurrentHealth - (stats.MaxHealth - 100));
+				if(Damage < 0){
+					Damage = 0;
+				}
+			}else if(InvFrames > 0){
+				InvFrames --;
+			}
+			if(Damage > D_MAX_DAMAGE){
+				Damage = D_MAX_DAMAGE;
+			}
+			stats.CurrentHealth = stats.MaxHealth - 100;
+			
+			//Smash Ballance
+			stats.ProjectileDamageTakenModifier = 0.5f;
+			
+			WeaponItem Item = WeaponItem.NONE;
+			if(Player.CurrentWeaponDrawn == WeaponItemType.Handgun){
+				Item = Player.CurrentSecondaryWeapon.WeaponItem;
+			}else{
+				Item = Player.CurrentPrimaryWeapon.WeaponItem;
+			}
+			int MyItem = (int)Item;
+			if(MyItem == 5 || MyItem == 6 || MyItem == 12 || MyItem == 30 || MyItem == 53 || MyItem == 40 || MyItem == 19 || MyItem == 13 || MyItem == 53 || MyItem == 55){
+				stats.ProjectileCritChanceDealtModifier = 0.5f;
+			}else{
+				stats.ProjectileCritChanceDealtModifier = 100f;
+			}
+			
+			Player.SetModifiers(stats);
+
+			if(IsSmashed){
+				effectTimer --;
+				if(effectTimer <= 0){
+					Game.PlayEffect("Electric",Player.GetWorldPosition());
+					effectTimer = (int)rnd.Next(30,90);
+				}
+
+				if(Player.IsWalking && (Player.IsMeleeAttacking || Player.IsJumpAttacking)){
+					/*
+					*  Not Very Original Final Smash Here
+					*/		
+			
+					Game.SpawnProjectile(ProjectileItem.GRENADE_LAUNCHER,Player.GetWorldPosition() + new Vector2(Player.GetFaceDirection() * 8,0),new Vector2(Player.GetFaceDirection(),Player.GetLinearVelocity().Y/4 + 0.125f));
+					Game.SpawnProjectile(ProjectileItem.GRENADE_LAUNCHER,Player.GetWorldPosition() + new Vector2(Player.GetFaceDirection() * 8,0),new Vector2(Player.GetFaceDirection(),Player.GetLinearVelocity().Y/4 + 0.25f));
+					Game.SpawnProjectile(ProjectileItem.GRENADE_LAUNCHER,Player.GetWorldPosition() + new Vector2(Player.GetFaceDirection() * 8,0),new Vector2(Player.GetFaceDirection(),Player.GetLinearVelocity().Y/4 + 0.375f));
+
+					_Smash_ = false;
+					IsSmashed = false;
+					SetupSmashBall();
+				}
+			}
+
+			if(Player.IsDisabled && Player.IsFalling && !IsHit){
+				IsHit = true;
+				Vector2 v = Player.GetLinearVelocity();
+				v *= 1 + (float)(Damage/100);
+				Player.SetLinearVelocity(v);
+			}else if(!Player.IsDisabled && !Player.IsFalling && Player.IsOnGround && IsHit){
+				IsHit = false;
+			}
+
+			int alt_col = (int)Math.Round(Damage);
+			if(Damage > 255){
+				alt_col = 255;
+			}
+			if(InvFrames <= 0){
+				Hud.SetTextColor(new Color(255,(byte)(255 - alt_col),(byte)(255 - alt_col)));
+				Hud.SetText(Math.Round(Damage) + "%");
+				Hud.SetWorldPosition(Player.GetWorldPosition() + new Vector2(0,24));
+			}else{
+				Hud.SetTextColor(new Color(255,255,255));
+				Hud.SetText("Lives: " + Lives);
+				Hud.SetWorldPosition(Player.GetWorldPosition() + new Vector2(0,24));
+			}
+	
+			if(Player.GetWorldPosition().Y > Top + 48){
+				Player.Remove();
+			}else{
+				if(Player.IsRocketRiding){
+					WasRocketRiding = true;
+				}else if(WasRocketRiding){
+					ResetPlayer();
+				}
+			}
+		}else{
+			Hud.SetText("");
+			if(IsSmashed){
+				_Smash_ = false;
+				IsSmashed = false;
+				SetupSmashBall();
+			}
+		}
+		if(Player != null && User != null && !Player.IsRemoved && Player.IsDead){
+			ResetPlayer();
+		}
+		if(User != null && Player.IsRemoved && Lives > 0){
+			if(Lives > 1){
+				if(ResFrames <= 0){
+					SpawnPlayer();
+				}else{
+					ResFrames --;
+				}
+			}else{
+				Lives = 0;
+			}	
+		}
+		if(User == null){
+			Lives = 0;	
+			Player.Remove();
+			if(IsSmashed){
+				_Smash_ = false;
+				IsSmashed = false;
+				SetupSmashBall();
+			}
+		}
+	}
+	public void giveSmash(){
+		_Smash_ = true;
+		IsSmashed = true;
+	}
+	public void chkNULL(){
+		bool success = false;
+		foreach(IUser usr in Game.GetActiveUsers()){
+			if(User == usr){
+				success = true;
+			}
+		}
+		if(!success){
+			User = null;
+			if(IsSmashed){
+				_Smash_ = false;
+				IsSmashed = false;
+				SetupSmashBall();
+			}
+		}
+	}
+	public void ResetPlayer(){
+		Game.WriteToConsole("Reset " + User.Name);
+		IPlayer temp = Game.CreatePlayer(Player.GetWorldPosition());
+		temp.SetAngularVelocity(Player.GetAngularVelocity());
+		temp.SetLinearVelocity(Player.GetLinearVelocity());
+		temp.SetProfile(Player.GetProfile());
+		temp.SetModifiers(Player.GetModifiers());
+		temp.SetTeam(Player.GetTeam());
+		Player.Remove();
+		User.SetPlayer(temp);
+		Player = temp;
+		WasRocketRiding = false;
+		Player.SetStatusBarsVisible(false);
+		PlayerModifiers stats = Player.GetModifiers();
+		stats.MaxHealth = 9999;
+		stats.CurrentHealth = (stats.MaxHealth - 100);
+		Player.SetModifiers(stats);
+	}
+	public void SpawnPlayer(){
+		Game.WriteToConsole("Respawned " + User.Name);
+		IObject[] Spawns = Game.GetObjectsByName("SpawnPlayer");
+		int index = rnd.Next(0,Spawns.Length);
+		IPlayer temp = Game.CreatePlayer(Spawns[index].GetWorldPosition());
+		temp.SetFaceDirection(Spawns[index].GetFaceDirection());
+		temp.SetProfile(User.GetProfile());
+		temp.SetTeam(User.GetTeam());
+		User.SetPlayer(temp);
+		Player = temp;
+		Damage = 0;
+		IsHit = false;
+		Lives --;
+		ResFrames = D_RESPAWN_FRAMES;
+		InvFrames = D_INVINCIBLE_FRAMES;
+		Player.SetStatusBarsVisible(false);
+		PlayerModifiers stats = Player.GetModifiers();
+		stats.MaxHealth = 9999;
+		stats.CurrentHealth = (stats.MaxHealth - 100);
+		Player.SetModifiers(stats);
+		if(IsSmashed){
+			_Smash_ = false;
+			IsSmashed = false;
+			SetupSmashBall();
+		}
+	}
+	public int GetLives(){
+		return Lives;
+	}
+	public IPlayer GetPlayer(){
+		return Player;
+	}
+	public IUser GetUser(){
+		return User;
+	}
+}
+
+
+bool updatemsg = true;
+public void OnUserMessage(UserMessageCallbackArgs args) {
+	if(args.User.IsHost || args.User.IsModerator){
+		if(args.IsCommand){
+			int val = 0;
+			switch(args.Command){
+				case "D_LIVES":
+					if(Int32.TryParse(args.CommandArguments,out val)){
+						if(val > 0){
+							UpdateSetting(0,val,args.Command);
+						}
+					}
+				break;
+				case "D_MULTIPLIER":
+					if(Int32.TryParse(args.CommandArguments,out val)){
+						if(val > 0){
+							UpdateSetting(1,val,args.Command);
+						}
+					}
+				break;
+				case "D_MAX_DAMAGE":
+					if(Int32.TryParse(args.CommandArguments,out val)){
+						if(val >= 0){
+							UpdateSetting(2,val,args.Command);
+						}
+					}
+				break;
+				case "D_RESPAWN_FRAMES":
+					if(Int32.TryParse(args.CommandArguments,out val)){
+						if(val > 0){
+							UpdateSetting(3,val,args.Command);
+						}
+					}
+				break;
+				case "D_INVINCIBLE_FRAMES":
+					if(Int32.TryParse(args.CommandArguments,out val)){
+						if(val > 0){
+							UpdateSetting(4,val,args.Command);
+						}
+					}
+				break;
+				case "D_FINAL_SMASHES":
+					if(Int32.TryParse(args.CommandArguments,out val)){
+						if(val == 0 || val == 1){
+							UpdateSetting(5,val,args.Command);
+						}
+					}
+				break;
+			}
+		}
+	}
+}
+
+public void UpdateSetting(int index,int val,string Command_Name){
+	options[index] = val;
+	Game.RunCommand("/msg " + Command_Name + " was updated to " + val);
+
+	Game.Data = "";
+	int z = 0;
+	foreach(int x in options){
+		if(z != 0){
+			Game.Data += "|" + x.ToString();
+		}else{
+			Game.Data += x.ToString();
+		}
+		z ++;
+	}
+}
+
+public void LoadSetting(){
+	if(Game.Data == ""){
+		Game.Data = D_LIVES + "|" + D_MULTIPLIER + "|" + D_MAX_DAMAGE + "|" + D_RESPAWN_FRAMES + "|" + D_INVINCIBLE_FRAMES + "|" + D_FINAL_SMASHES;
+	}
+	string[] data = Game.Data.Split('|');
+	for(int x = 0;x < data.Length;x ++){
+		Int32.TryParse(data[x],out options[x]);
+	}
+	D_LIVES = options[0];
+	D_MULTIPLIER = options[1];
+	D_MAX_DAMAGE = options[2];
+	D_RESPAWN_FRAMES = options[3];
+	D_INVINCIBLE_FRAMES = options[4];
+	D_FINAL_SMASHES = options[5];
+}
+
+int[] options = new int[6];
+public void OnStartup(){
+	LoadSetting();
+
+	m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+	img_SmashBall = getImage(spr_SmashBall);
+	img_SmashBall.RemoveColor(new Color(255,255,255));
+	smashObj = (IObjectActivateTrigger)Game.CreateObject("ActivateTrigger");
+	smashObj.SetScriptMethod("CollectSmash");
+
+	Game.RunCommand("/msg -----------------|");
+	Game.RunCommand("/msg Super Fighter Bros.");
+	Game.RunCommand("/msg -----------------|");
+	Game.RunCommand("/msg Game Options:");
+	Game.RunCommand("/msg Lives: " + D_LIVES);
+	if (D_FINAL_SMASHES == 1){ Game.RunCommand("/msg Final Smashes: Enabled"); }else{ Game.RunCommand("/msg Final Smashes: Disabled"); }
+	if (D_MULTIPLIER != 1){ Game.RunCommand("/msg Multiplier: " + D_MULTIPLIER + "x"); }
+	if (D_MAX_DAMAGE != 999){ Game.RunCommand("/msg Max Damage: " + D_MAX_DAMAGE + "%"); }
+	if (D_RESPAWN_FRAMES != 300){ Game.RunCommand("/msg Respawn Time: " + D_RESPAWN_FRAMES); }
+	if (D_INVINCIBLE_FRAMES != 120){ Game.RunCommand("/msg Invincible Time: " + D_INVINCIBLE_FRAMES); }
+	Game.RunCommand("/msg -----------------|");
+
+	Top = Game.GetCameraArea().Top;
+	Bottom = Game.GetCameraArea().Bottom;
+	Right = Game.GetCameraArea().Right;
+	Left = Game.GetCameraArea().Left;
+	if(Game.GetObjectsByName("CameraAreaTrigger").Length > 0){
+		Top = Game.GetObjectsByName("CameraAreaTrigger")[0].GetAABB().Top;
+		Bottom = Game.GetObjectsByName("CameraAreaTrigger")[0].GetAABB().Bottom;
+		Right = Game.GetObjectsByName("CameraAreaTrigger")[0].GetAABB().Right;
+		Left = Game.GetObjectsByName("CameraAreaTrigger")[0].GetAABB().Left;
+	}
+	
+	Game.SetAllowedCameraModes(CameraMode.Static);
+	Game.AutoVictoryConditionEnabled = false;
+	foreach(IPlayer ply in Game.GetPlayers()){
+		Fighters.Add(new Fighter(ply));
+	}
+
+	//IDLE Blocks
+	Game.CreateObject("Concrete00A",new Vector2(0,2000));
+	IObject block = Game.CreateObject("Concrete00A",new Vector2(-8,Top + 64));
+	block.SetSizeFactor(new Point(3,0));
+	IObject block2 = Game.CreateObject("Concrete00A",new Vector2(-8,Top + 96));
+	block2.SetSizeFactor(new Point(3,0));
+	Game.CreateObject("Concrete00A",new Vector2(0,2000));
+	IObject block3 = Game.CreateObject("Concrete00A",new Vector2(-16,Top + 96));
+	block3.SetSizeFactor(new Point(1,5));
+	IObject block4 = Game.CreateObject("Concrete00A",new Vector2(16,Top + 96));
+	block4.SetSizeFactor(new Point(1,5));
+	IPlayer temp = Game.CreatePlayer(new Vector2(0,Top + 80));
+	temp.SetStatusBarsVisible(false);
+	temp.SetNametagVisible(false);
+
+	IObjectTimerTrigger stepper = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	stepper.SetScriptMethod("GameStep");
+	stepper.SetIntervalTime(0);
+	stepper.SetRepeatCount(0);
+	stepper.Trigger();
+
+	SetupSmashBall();
+}
+
+public void GameStep(TriggerArgs args){
+
+	//SMASH BALL FUNCTIONS
+	if(smashWaitTime > 0){
+		smashWaitTime --;
+	}else if (smashWaitTime == 0){
+		smashWaitTime = -1;
+		switch(rnd.Next(0,2)){
+			case 0:
+				smashPos = new Vector2(Right + 32,rnd.Next((int)Bottom + 50,(int)Top - 50));
+				smash_y = smashPos.Y;
+				smashSpeed = -0.5f;
+			break;
+			case 1:
+				smashPos = new Vector2(Left - 32,rnd.Next((int)Bottom + 50,(int)Top - 50));
+				smash_y = smashPos.Y;
+				smashSpeed = 0.5f;
+			break;
+		}
+	}else{
+		smashPos.X += smashSpeed;
+		smashPos.Y = smash_y + (float)Math.Sin(smashPos.X / 50) * 50;
+		img_SmashBall.SetPosition(smashPos);
+		smashObj.SetWorldPosition(new Vector2(smashPos.X + 8,smashPos.Y + 8));
+		if(smashPos.X < Left - 156){
+			SetupSmashBall();
+		}
+		if(smashPos.X > Right + 156){
+			SetupSmashBall();
+		}
+	}
+
+	int[] teams = new int[5];
+
+	foreach(Fighter o in Fighters){
+		o.Step();
+		if(o.GetLives() > 0){
+			teams[(int)o.GetUser().GetTeam()] ++;
+		}	
+	}
+	if(teams[0] == 1 && teams[1] + teams[2] + teams[3] + teams[4] == 0){
+		foreach(Fighter o in Fighters){
+			if(o.GetLives() > 0 && !o.GetPlayer().IsDead){
+				Game.SetGameOver(o.GetUser().Name + "\nWins!");
+			}
+		}
+	}
+	if(teams[1] >= 1 && teams[0] + teams[2] + teams[3] + teams[4] == 0){
+		string Names = "";
+		foreach(Fighter o in Fighters){
+			if((int)o.GetUser().GetTeam() == 1){
+				Names += o.GetUser().Name + "\n";
+			}
+		}
+		Game.SetGameOver(Names + "Wins!");
+	}
+	if(teams[2] >= 1 && teams[0] + teams[1] + teams[3] + teams[4] == 0){
+		string Names = "";
+		foreach(Fighter o in Fighters){
+			if((int)o.GetUser().GetTeam() == 2){
+				Names += o.GetUser().Name + "\n";
+			}
+		}
+		Game.SetGameOver(Names + "Wins!");
+	}
+	if(teams[3] >= 1 && teams[0] + teams[2] + teams[1] + teams[4] == 0){
+		string Names = "";
+		foreach(Fighter o in Fighters){
+			if((int)o.GetUser().GetTeam() == 3){
+				Names += o.GetUser().Name + "\n";
+			}
+		}
+		Game.SetGameOver(Names + "Wins!");
+	}
+	if(teams[4] >= 1 && teams[0] + teams[2] + teams[3] + teams[1] == 0){
+		string Names = "";
+		foreach(Fighter o in Fighters){
+			if((int)o.GetUser().GetTeam() == 4){
+				Names += o.GetUser().Name + "\n";
+			}
+		}
+		Game.SetGameOver(Names + "Wins!");
+	}
+}
+
+static bool _Smash_ = false;	
+static Vector2 smashPos;
+static float smashSpeed = 0;
+static int smashWaitTime = -1;
+static IObjectActivateTrigger smashObj;
+static float smash_y = 0;
+public static void SetupSmashBall(){
+	smash_y = 10000;
+	if(D_FINAL_SMASHES == 1){
+		smashWaitTime = rnd.Next(600,2000);	
+	}
+	smashPos.Y = smash_y;
+	img_SmashBall.SetPosition(smashPos);
+	smashObj.SetWorldPosition(new Vector2(smashPos.X + 8,smashPos.Y + 8));
+}
+
+public void CollectSmash(TriggerArgs args){
+	if(args.Sender is IPlayer){
+		foreach(Fighter o in Fighters){
+			if(o.GetPlayer() == (args.Sender as IPlayer)){
+				o.giveSmash();
+			}
+		}
+		Game.PlayEffect("CFTXT",(args.Sender as IObject).GetWorldPosition(),"Press ALT + A\nTo Final Smash");
+		smash_y = 10000;
+		smashSpeed = 0;
+		smashWaitTime = -1;
+		smashPos.Y = smash_y;
+		img_SmashBall.SetPosition(smashPos);
+		smashObj.SetWorldPosition(new Vector2(smashPos.X + 8,smashPos.Y + 8));
+	}
+}
+
+//Made by Ebomb09 - January 14, 2019
+//You can make sprites inside of the map editor but it is easier to convert your image files with the included application
+
+//Default Constructors
+/*		Sprite spr = new Sprite("NAME","DATA");
+ *		Image img = getImage(SPRITE);
+*/
+//Script Notes:
+/* 		-Origin of the sprite is bottom left (0,0)
+ *
+ *		-Larger images will take longer to load, using this script I would recommend 
+ *		 16x16 images or less higher can work but higher will be unoptimized
+ *
+ *		-The image converter was made in GameMaker 2 if you were wondering
+ *
+ *		-To make sprites inside the mapeditor you need to set the RGB values as the 
+ * 		 CustomID of object BgAdobe00E and set mode to 1, origin is also(0,0) in editor
+*/
+//Image Functions:
+/*		GetPosition() 			- Returns position of the image
+ *		SetPosition(Vector2)	- Sets the position of the image
+ *		Move(Vector2) 			- Move the sprite by the Vector2
+ *		Scale(flaot)			- Scale up/down the image
+ *		FlipHorrizontal()		- Flip the image along the y axis
+ *		FlipVertical()			- Flip the image along the x axis
+ *		RemoveColour(Color)		- Remove a color from the image, can be used to remove background
+ *		RemoveColour(Color)		- Remove a color from the image, can be used to remove background
+ *		ReplaceImage(Sprite)	- Switches the Sprite for a new Sprite
+ *		FreeSurface()			- Clears the image and stored data
+*/
+
+//HOLDS IMAGE DATA
+public struct Sprite{
+	public string Name;
+	public string data;
+
+	public Sprite(string in_name,string in_data){
+		Name = in_name;
+		data = in_data;
+	}
+}
+
+//USES IMAGE DATA
+public struct Image{
+	List<IObject> contents;
+	List<Vector2> coords;
+	Vector2 Position;
+	float scale;	
+
+	public Image(List<IObject> pp, List<Vector2> locs){
+		contents = pp;
+		coords = locs;
+		Position = new Vector2(0,0);
+		scale = 1;
+		SetPosition(Position);
+	}
+	public Vector2 GetPosition(){
+		return Position;
+	}
+	public void Move(Vector2 mov){
+		SetPosition(new Vector2(Position.X + mov.X, Position.Y + mov.Y));
+	}
+	public void SetPosition(Vector2 pos){
+		Position = new Vector2(pos.X,pos.Y);
+		pos.X -= 1 * scale;
+		pos.Y += 2 * scale;
+		int index = 0;
+		foreach(IObject obj in contents){
+			obj.SetWorldPosition(pos + coords[index]);
+			index ++;
+		}
+	}
+	public void Scale(float value){
+		int index = 0;
+		foreach(IObject obj in contents){
+			coords[index] *= value/scale;
+			((IObjectText)obj).SetTextScale(value);
+			index ++;
+		}	
+		scale = value;
+		SetPosition(Position);
+	}
+	public void FlipHorrizontal(){
+		int index = 0;
+		foreach(IObject obj in contents){
+			coords[index] = new Vector2(coords[index].X * -1,coords[index].Y);
+			index ++;
+		}		
+		SetPosition(Position);	
+	}
+	public void FlipVertical(){
+		int index = 0;
+		foreach(IObject obj in contents){
+			coords[index] = new Vector2(coords[index].X,coords[index].Y * -1);
+			index ++;
+		}		
+		SetPosition(Position);	
+	}
+	public void RemoveColour(Color c_picker){
+		int index = 0;	
+		List<IObject> temp = contents;
+		foreach(IObject obj in temp){
+			if( ((IObjectText)obj).GetTextColor().Equals(c_picker)){
+				obj.Remove();
+				index ++;
+			}
+		}
+	}
+	public void RemoveColor(Color c_picker){
+		RemoveColour(c_picker);
+	}
+	public void FreeSurface(){
+		foreach(IObject obj in contents){
+			obj.Remove();
+		}
+		contents = null;
+		coords = null;
+	}
+	public void ReplaceImage(Sprite sprite){
+		FreeSurface();
+		string[] format = sprite.data.Split('|');
+		contents = new List<IObject>();
+		coords = new List<Vector2>();	
+
+		foreach(string pixel in format){
+			string[] data_section = pixel.Split(',');
+			if(data_section[0] != ""){
+				int x = Int32.Parse(data_section[0]);
+				int y = Int32.Parse(data_section[1]);
+				Color col = new Color((byte)Int32.Parse(data_section[2]),(byte)Int32.Parse(data_section[3]),(byte)Int32.Parse(data_section[4]));
+				IObjectText pp = (IObjectText)Game.CreateObject("BgText",new Vector2(x * scale,y * scale));
+				pp.SetText(".");
+				pp.SetTextColor(col);
+				contents.Add(pp);
+				coords.Add(pp.GetWorldPosition());
+			}
+		}
+		Scale(scale);
+		SetPosition(Position);
+	}
+}
+
+//DRAW FUNCTIONS
+public static Image getImage(Sprite sprite){
+	string[] format = sprite.data.Split('|');
+	List<IObject> contents = new List<IObject>();
+	List<Vector2> coords = new List<Vector2>();	
+
+	foreach(string pixel in format){
+		string[] data_section = pixel.Split(',');
+		if(data_section[0] != ""){
+			int x = Int32.Parse(data_section[0]);
+			int y = Int32.Parse(data_section[1]);
+			Color col = new Color((byte)Int32.Parse(data_section[2]),(byte)Int32.Parse(data_section[3]),(byte)Int32.Parse(data_section[4]));
+			IObjectText pp = (IObjectText)Game.CreateObject("Text",new Vector2(x,y));
+			pp.SetText(".");
+			pp.SetTextColor(col);
+			contents.Add(pp);
+			coords.Add(pp.GetWorldPosition());
+		}
+	}
+
+	return new Image(contents,coords);
+}

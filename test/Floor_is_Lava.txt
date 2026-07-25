@@ -1,0 +1,70 @@
+List <IObject> stuff;
+List <IPlayer> ply = new List <IPlayer> ();
+public void OnStartup()
+{
+    Area size = Game.GetCameraMaxArea();
+    Vector2 pos = size.BottomLeft;
+
+    IObject lavaTop = Game.CreateObject("Water00A", pos);
+    lavaTop.SetSizeFactor(new Point((int)(pos.X * -1) / 8, 1));
+    IObject lava = Game.CreateObject("Water00B", pos - new Vector2(0, 8));
+    lava.SetSizeFactor(new Point((int)(pos.X * -1) / 8, (int) Game.GetCameraArea().Height / 8));
+
+    IObject waterZone = Game.CreateObject("WaterZone", pos - new Vector2(0, 4));
+    waterZone.SetSizeFactor(new Point((int)(pos.X * -1) / 4, 1));
+
+    IObjectAreaTrigger killZone = (IObjectAreaTrigger) Game.CreateObject("AreaTrigger", pos - new Vector2(0, 16));
+    killZone.SetSizeFactor(new Point((int)(pos.X * -1) / 4, (int) Game.GetCameraArea().Height / 8));
+    killZone.SetOnEnterMethod("AddPoisonPlayer");
+    killZone.SetOnLeaveMethod("RemovePoisonPlayer");
+    killZone.SetEnabledObjects(AreaTriggerEnabledObjects.Players);
+
+    stuff = new List <IObject> (){lavaTop, lava, waterZone, killZone};
+    timer(200, 0, "Move");
+    timer(300, 0, "Poison");
+}
+
+public int AlivePlayers()
+{
+    int count = 0;
+    foreach(IPlayer ply in Game.GetPlayers())
+    {
+        if (!ply.IsBot && !ply.IsDead)
+            count++;
+    }
+    return count;
+}
+
+public void Move(TriggerArgs args)
+{
+    if (AlivePlayers() >= 1)
+        foreach(IObject obj in stuff)
+    	obj.SetWorldPosition(obj.GetWorldPosition() + new Vector2(0, 1));
+}
+
+public void AddPoisonPlayer(TriggerArgs args)
+{
+    ply.Add((IPlayer) args.Sender);
+}
+
+public void RemovePoisonPlayer(TriggerArgs args)
+{
+    ply.Remove((IPlayer) args.Sender);
+}
+
+public void Poison(TriggerArgs args)
+{
+    foreach(IPlayer players in ply)
+    	if (!players.IsRemoved && !players.IsDead)
+        players.SetHealth(players.GetHealth() - 15);
+}
+
+IObjectTimerTrigger timer(int interval, int repeat, string method)
+{
+    IObjectTimerTrigger t = (IObjectTimerTrigger) Game.CreateObject("TimerTrigger");
+    t.SetIntervalTime(interval);
+    t.SetRepeatCount(repeat);
+    t.SetScriptMethod(method);
+    t.Trigger();
+    return t;
+}

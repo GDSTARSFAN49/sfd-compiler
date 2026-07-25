@@ -1,0 +1,633 @@
+/*
+* author: Ebomb09 
+* description: Prop Hunt! 
+* mapmodes: versus, custom, campaign, survival 
+*/
+
+public static Random rnd = new Random();
+
+//Store All Players
+public static IList<Prop> props = new List<Prop>();	
+public static IList<Hunt> hunts = new List<Hunt>();
+
+public int GAMEOVER = 0;
+
+public static int WarmupTime = 15;
+
+public static string[] propItems = {"Crate00","Crate02","Barrel00","Crate01","FileCab00"};		//Most Compatible Objects
+public static string[] Taunts = {"Hey!","Pst","Over Here","Buddy","Keep Looking","Shh"};	
+
+string tip = 			"\n>--------<\n Props can press F to taunt";								//Mid Game Tip
+string startTip =	 	"\n>--------<\n Props can press F to change objects";					//Start Tip
+int tip_timer = 4 * 100;
+int startTip_timer = (WarmupTime - 5) * 100;
+
+//Hunter Wait Text
+int infx = 1;
+float infy = 0;
+
+public Area camOrig;
+public Area camMod;
+
+public void OnStartup(){
+	foreach(IObject obj in Game.GetObjectsByName("CameraAreaTrigger")){
+		(obj as IObjectCameraAreaTrigger).SetEnabled(false);
+	}
+}
+
+public void AfterStartup(){
+	if(Game.GetActiveUsers().Length > 0){
+
+	foreach(IObject obj in Game.GetObjectsByName(new string[]{"SpawnWeapon","SpawnWeaponArea","SpawnWeaponAreaCeiling"})){
+		obj.Remove();	
+	}
+
+	Game.RunCommand("/ia 1");
+	Game.RunCommand("/ie 1");
+
+	Game.SetWorldBottom(Game.GetWorldBottom() - 32);
+
+	//IDLE Blocks
+	Game.CreateObject("Concrete00A",new Vector2(0,2000));
+	IObject block = Game.CreateObject("Concrete00A",new Vector2(-8,Game.GetWorldBottom()));
+	block.SetSizeFactor(new Point(3,0));
+	IObject block2 = Game.CreateObject("Concrete00A",new Vector2(-8,Game.GetWorldBottom() + 28));
+	block2.SetSizeFactor(new Point(3,0));
+	IObject block3 = Game.CreateObject("GibZone",new Vector2(-32,Game.GetWorldBottom() + 36));
+	block3.SetSizeFactor(new Point(9,0));
+
+	//PORTALS
+	IObjectPortal port = (IObjectPortal)Game.CreateObject("Portal",new Vector2(16,Game.GetWorldBottom() + 24));
+	IObjectPortal port2 = (IObjectPortal)Game.CreateObject("Portal",new Vector2(-16,Game.GetWorldBottom() + 24));
+	
+	port.SetDestinationPortal(port2);
+	port2.SetDestinationPortal(port);
+	port2.SetExitDirection(PortalDirection.Left);
+	port2.SetEnterDirection(PortalDirection.Left);
+
+	//Help Limit Camera
+	IPlayer temp = Game.CreatePlayer(new Vector2(0,Game.GetWorldBottom() + 8));
+	temp.SetStatusBarsVisible(false);
+	temp.SetNametagVisible(false);
+	temp.SetTeam(PlayerTeam.Team1);
+
+	camOrig = Game.GetCameraArea();
+	camMod = camOrig;
+	camMod.Top = 1990;
+	camMod.Bottom = Game.GetWorldBottom() + 64;
+
+	//HUNTER IDLE BLOCKS
+	IObjectText info = (IObjectText)Game.CreateObject("Text",new Vector2((camMod.Left + camMod.Right)/2 - 88,1696));
+	info.SetText("Hunters Please Wait While The Props Are Hiding");
+	info.CustomID = "info";
+
+	//Set Camera to hide props
+	Game.SetAllowedCameraModes(CameraMode.Dynamic);
+	Game.SetCameraArea(camMod);
+
+	WarmupTime *= 100;
+
+		Game.WriteToConsole("Removing Players...");
+	foreach(IUser user in Game.GetActiveUsers()){
+		if (user.GetPlayer() != null && !user.GetPlayer().IsRemoved) {
+			user.GetPlayer().Remove();
+		}
+	}
+		Game.WriteToConsole("Done");
+
+		Game.WriteToConsole("Setting Teams...");
+	PropHunt.SetTeams();
+		Game.WriteToConsole("Done");
+
+		Game.WriteToConsole("Position Players...");
+	PropHunt.SpawnPlayers();
+		Game.WriteToConsole("Done");
+
+		Game.RunCommand("/msg Props quickly hide! You have " + WarmupTime/100 + " seconds");
+
+		Game.WriteToConsole("Starting Main Loop...");
+	IObjectTimerTrigger tick = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	tick.SetIntervalTime(0);
+	tick.SetRepeatCount(0);
+	tick.SetScriptMethod("gameStep");
+	tick.Trigger();
+		Game.WriteToConsole("Done");	
+
+		Game.WriteToConsole("Prop Hunt Initialized");
+	}
+}
+
+public void gameStep(TriggerArgs args){
+
+	//Hunters Void
+	IObject inf = Game.GetSingleObjectByCustomID("info");
+	if(inf != null){
+		inf.SetWorldPosition(new Vector2(inf.GetWorldPosition().X,inf.GetWorldPosition().Y + infy));
+	}
+	if(infx == 1){
+		infy += 0.01f;
+	}else{
+		infy -= 0.01f;
+	}
+	if(Math.Abs(infy) >= 0.2f){
+		infx *= -1;
+	}
+
+	//Find Disconnected Players
+	PropHunt.checkNULL();
+
+	//HUD
+	if(!Game.IsGameOver && WarmupTime == -1){
+		int lists = 0;
+		foreach(Prop o in props){
+			if(o.item != null){
+				lists ++;
+			}
+		}
+		if (lists <= 1){ Game.ShowPopupMessage(lists + " Prop Remaining" + tip); }else{ Game.ShowPopupMessage(lists + " Props Remaining" + tip); }
+	}else if(WarmupTime == -1){
+		Game.ShowPopupMessage("");
+	}
+
+	//Timer
+	if(WarmupTime > 0){
+		Game.ShowPopupMessage((WarmupTime / 100) + startTip);
+	}else if(WarmupTime == 0){
+		WarmupTime = -1;
+		Game.SetCameraArea(camOrig);
+		Game.SetAllowedCameraModes(CameraMode.Static);
+		foreach(Hunt o in hunts){
+			o.enable();
+		}
+	}
+	if(WarmupTime > 0){
+		WarmupTime --;
+	}else if(tip_timer > 0){
+		tip_timer --;
+	}
+	if (tip.Length > 0 && tip_timer <= 0){
+		tip = tip.Substring(0,tip.Length - 1);
+	}
+	if (startTip.Length > 0 && WarmupTime < startTip_timer){
+		startTip = startTip.Substring(0,startTip.Length - 1);
+	}
+
+	//Check Props
+	foreach(Prop o in props){
+		o.mov();
+	}
+	foreach(Hunt o in hunts){
+		o.dmg();
+	}
+
+	//check win results
+	if(!Game.IsGameOver && WarmupTime == -1){
+		int blus = 0;
+		int reds = 0;
+		foreach(IUser user in Game.GetActiveUsers()){
+			if(user.GetPlayer() != null){
+				IPlayer ply = user.GetPlayer();
+				if(!ply.IsDead){
+					switch(ply.GetTeam()){
+						case PlayerTeam.Team1:
+							blus ++;
+						break;
+						case PlayerTeam.Team2:
+							reds ++;
+						break;		
+					}
+				}
+			}
+		}
+		if(blus == 0){
+			Game.SetGameOver("Hunters Win!");
+			GAMEOVER = 1;
+		}
+		if(reds == 0){
+			Game.SetGameOver("Props Win!");
+			GAMEOVER = 1;
+		}
+	}
+	if(Game.IsGameOver && Game.GetRemainingTimeLimit() == new TimeSpan(0) && WarmupTime == -1 && GAMEOVER == 0){
+		Game.SetGameOver("Props Win!");
+	}
+
+}
+
+public static class PropHunt{
+	public static void SetTeams(){
+		//Uses 2 randoms, not always random enough
+		Random ot = new Random();
+		int size = Game.GetActiveUsers().Length;
+		int hunters = 1;
+		int[] nums = new int[2];
+		nums[0] = ot.Next(0,size);
+		nums[1] = rnd.Next(0,size);
+
+		//Ensure same player isn't picked too many times
+		if(Game.GetActiveUsers()[nums[0]].Name == Game.Data){
+			nums[0] ++;
+			if(nums[0] >= size){
+				nums[0] = 0;
+			}
+		}
+		Game.Data = Game.GetActiveUsers()[nums[0]].Name;
+
+		//If Num#2 is same as Num#1
+		if(size > 5){
+			hunters ++;
+			if(nums[1] == nums[0]){
+				nums[1] ++;
+			}
+			if(nums[1] >= size){
+				nums[1] = 0;
+			}
+		}
+
+		for(int index = 0;index < size;index ++){
+			IUser user = Game.GetActiveUsers()[index];		
+			if((index == nums[0] || index == nums[1]) && hunters > 0){
+				hunts.Add(new Hunt(user));
+				hunters --;
+			}else{
+				props.Add(new Prop(user));
+			}
+		}
+	}
+	public static void SpawnPlayers(){
+		foreach(Prop o in props){
+			o.Spawn();
+		}
+		foreach(Hunt o in hunts){
+			o.Spawn();
+		}
+	}
+	public static IObject[] GetSpawns(){
+		return Game.GetObjectsByName("SpawnPlayer");
+	}
+	public static IObject[] GetPropSpawns(){
+		return Game.GetObjectsByName("SpawnUnknown");
+	}
+	public static void checkNULL(){
+		//Check each list, if user no longer exists set to null
+		foreach(Hunt o in hunts){
+			int check = 0;
+			foreach(IUser usr in Game.GetActiveUsers()){
+				if(o.user == usr){
+					check = 1;
+				}
+			}
+			if(check == 0){
+				o.sav.Kill();	
+				o.user = null;
+			}
+		}
+		foreach(Prop o in props){
+			int check = 0;
+			foreach(IUser usr in Game.GetActiveUsers()){
+				if(o.user == usr){
+					check = 1;
+				}
+			}
+			if(check == 0){
+				o.user = null;
+				if (o.sav != null){
+					o.sav.Kill();
+				}
+				if(o.item != null){
+					o.item.Destroy();
+					o.item = null;
+				}
+			}
+		}
+	}
+}
+
+public class Prop{
+	public IUser user;
+	public IPlayer sav;
+	public IObject item = null;
+	Vector2 loc = new Vector2(0,Game.GetWorldBottom() + 8);
+	float MaxHealth = 0;
+	IObjectText hud;	
+	IObjectActivateTrigger func;
+	bool dead = false;
+	int PlyMaxHealth = 50;	
+
+	//Safety Measures so object is not so easily destroyed
+	Vector2 SAVpos = new Vector2(0,0);
+	float SAVangle = 0;
+
+	public Prop(IUser input){
+		user = input;
+		hud = (IObjectText)Game.CreateObject("Text",new Vector2(0,0));
+	}
+	public void Spawn(){
+		IPlayer ply = Game.CreatePlayer(loc);
+		ply.SetTeam(PlayerTeam.Team1);
+		ply.SetProfile(user.GetProfile());
+		ply.SetStatusBarsVisible(false);
+		ply.SetNametagVisible(false);
+		user.SetPlayer(ply);
+		item = Game.CreateObject(propItems[rnd.Next(0,propItems.Length)],PropHunt.GetPropSpawns()[rnd.Next(0,PropHunt.GetPropSpawns().Length)].GetWorldPosition());
+		MaxHealth = item.GetMaxHealth();
+		func = (IObjectActivateTrigger)Game.CreateObject("ActivateTrigger");
+		func.SetScriptMethod("knock");
+		func.CustomID = ply.Name;
+		item.CustomID = ply.Name;
+		item.SetMass(0.012f);
+		PlayerModifiers mod = ply.GetModifiers();
+		mod.MaxHealth = PlyMaxHealth;
+		ply.SetModifiers(mod);
+		sav = ply;
+	}
+	public void mov(){
+
+		hud.SetText("");
+		
+		if(user != null){
+			if(user.GetPlayer() != null && (user.GetPlayer().IsRemoved || user.GetPlayer().IsDead)){
+				item = null;
+			}
+		}
+		
+		if(item != null && user != null){
+
+			IPlayer ply = user.GetPlayer();
+
+			if(ply != null){
+
+				if(ply.IsDiving){
+					ply.Remove();
+					ply = Game.CreatePlayer(loc);
+					ply.SetTeam(PlayerTeam.Team1);
+					ply.SetProfile(user.GetProfile());
+					ply.SetStatusBarsVisible(false);
+					ply.SetNametagVisible(false);
+					user.SetPlayer(ply);
+					PlayerModifiers mod = ply.GetModifiers();
+					mod.MaxHealth = PlyMaxHealth;
+					ply.SetModifiers(mod);
+					sav = ply;					
+				}
+				item.TrackAsMissile(false);
+
+				func.SetWorldPosition(ply.GetWorldPosition());				
+				if(WarmupTime > 0 || Game.IsGameOver){
+					Vector2 pos = item.GetWorldPosition();
+					pos.X -= ply.Name.Length * 2;
+					pos.Y += 16;
+					hud.SetWorldPosition(pos);
+					hud.SetText(ply.Name);
+				}
+
+				//Y Axis
+				Vector2 plyPhys = ply.GetLinearVelocity();
+				Vector2 objPhys = item.GetLinearVelocity();
+				
+				if(Math.Abs(item.GetLinearVelocity().Y) < 1 && checkCollision() && !ply.IsOnGround && plyPhys.Y > 0){
+					item.SetLinearVelocity(new Vector2(objPhys.X,plyPhys.Y));
+				}
+
+				//ladder
+				plyPhys = ply.GetLinearVelocity();
+				objPhys = item.GetLinearVelocity();
+
+				if(checkLadder()){
+					if(ply.IsCrouching){
+						item.SetLinearVelocity(new Vector2(objPhys.X,-3));
+					}
+					if(!ply.IsOnGround){
+						item.SetLinearVelocity(new Vector2(objPhys.X,3));
+					}
+					if(ply.IsCrouching || !ply.IsOnGround){
+						item.SetAngularVelocity(0);
+					}
+				}
+
+				//X axis
+				plyPhys = ply.GetLinearVelocity();
+				objPhys = item.GetLinearVelocity();
+
+				if (plyPhys.X != 0){ 
+					item.SetLinearVelocity(new Vector2(plyPhys.X,objPhys.Y));
+				}else{
+					item.SetLinearVelocity(new Vector2(objPhys.X,objPhys.Y));
+				}
+
+
+				//Check Damage
+				float origHealth = ply.GetModifiers().CurrentHealth;
+				float Health = origHealth;
+			
+				if(item.GetHealth() != MaxHealth && WarmupTime < 0 && (MaxHealth - item.GetHealth())/4 > 2){
+					PlayerModifiers temp = ply.GetModifiers();
+					temp.CurrentHealth -= (MaxHealth - item.GetHealth())/4;
+					if(Health - (MaxHealth - item.GetHealth())/4 < 1){
+						Health = 0;
+						//Game.RunCommand("/msg debug:" + ply.Name + ":" + (Health - (MaxHealth - item.GetHealth())/4));
+						item.Destroy();
+					}
+					ply.SetModifiers(temp);
+				}
+				//Check if object might be destroyed
+				if((item.DestructionInitiated || item.IsBurning) && !checkGib()){
+					if(Health != 0){
+						string Name = item.Name;
+						item.Remove();
+						item = Game.CreateObject(Name,SAVpos);
+						item.CustomID = ply.Name;
+						item.SetMass(0.012f);
+						item.SetAngle(SAVangle);
+						item.SetLinearVelocity(new Vector2(0,0));
+						item.SetAngularVelocity(0);
+						PlayerModifiers temp = ply.GetModifiers();
+						temp.CurrentHealth = origHealth;
+						ply.SetModifiers(temp);
+
+						Area box = item.GetAABB();
+						box.Move(new Vector2(0,4));
+						foreach(IObject obj in Game.GetObjectsByArea(box)){
+							if(obj != item && obj.Name.Substring(0,2) != "bg" && obj.Name.Substring(0,3) != "far"){
+								obj.SetLinearVelocity(new Vector2(0,0));
+								if(obj.Name == "HangingCrate00" || obj.Name == "HangingCrate01"){
+									item.Destroy();
+									Health = 0;
+								}
+							}
+						}						
+					}
+				}
+				if(item != null){
+					SAVpos = item.GetWorldPosition();
+					SAVangle = item.GetAngle();
+				}
+				item.SetHealth(MaxHealth);
+				
+				if(item.Name == ""){
+					ply.Kill();
+					item = null;
+					Game.RunCommand("/msg " + ply.Name + "'s Prop Destroyed");
+					if(!dead){
+						foreach(Hunt o in hunts){
+							o.giveHealth();
+						}
+						dead = true;
+					}
+				}
+			}
+		}
+	}
+	public bool checkCollision(){
+
+		Area box = item.GetAABB();
+		box.Grow(0.1f);
+		box.Move(new Vector2(0,-4));
+		foreach(IObject obj in Game.GetObjectsByArea(box)){
+			if(obj != item && obj.Name.Substring(0,2) != "bg" && obj.Name.Substring(0,3) != "far"  && (obj.Name != "InvisibleLadder" && obj.Name != "MetalLadder00A" && obj.Name != "MetalLadder01A" && obj.Name != "WoodLadder00A")){
+				return true;
+			}
+		}
+
+		return false;
+	}
+	public bool checkLadder(){
+
+		Area box = item.GetAABB();
+		box.Grow(0.1f);
+		box.Move(new Vector2(0,4));
+		foreach(IObject obj in Game.GetObjectsByArea(box)){
+			if(obj != item && (obj.Name == "InvisibleLadder" || obj.Name == "MetalLadder00A" || obj.Name == "MetalLadder01A" || obj.Name == "WoodLadder00A")){
+				return true;
+			}
+		}	
+		return false;
+	}
+	public bool checkGib(){
+
+		Area box = item.GetAABB();
+		box.Grow(0.1f);
+		foreach(IObject obj in Game.GetObjectsByArea(box)){
+			if(obj != item && (obj.Name == "GibZone" || obj.Name == "GibZoneClear")){
+				return true;
+			}
+		}	
+		return false;
+	}
+	public void switchObject(){
+		string Name = "";
+		Vector2 phys = item.GetLinearVelocity();
+		int f = 0;
+		float angle = item.GetAngle();
+
+		for(int x = 0;x < propItems.Length;x ++){
+			if(item.Name == propItems[x]){
+				f = x + 1;
+				if(f >= propItems.Length){
+					f = 0;
+				}
+			}
+		}
+
+		Name = propItems[f];
+		IObject item2 = Game.CreateObject(Name,item.GetWorldPosition());
+		item.Remove();
+		item = item2;
+		item.CustomID = user.GetPlayer().Name;
+		item.SetMass(0.012f);
+		item.SetLinearVelocity(phys);
+		item.SetAngle(angle);
+		MaxHealth = item.GetMaxHealth();
+	}
+}
+
+public class Hunt{
+	public IUser user;
+	public IPlayer sav;
+	int shots = 0;
+	int hits = 0;	
+
+	public Hunt(IUser input){
+		user = input;
+	}
+	public void Spawn(){
+		IPlayer ply = Game.CreatePlayer(new Vector2(0,2008));
+		ply.SetProfile(user.GetProfile());
+		ply.SetTeam(PlayerTeam.Team2);
+		ply.SetStatusBarsVisible(false);
+		ply.SetNametagVisible(false);
+		ply.SetInputEnabled(false);
+		
+		user.SetPlayer(ply);
+		sav = ply;
+	}
+	public void enable(){
+		if(user != null){
+			IPlayer ply = user.GetPlayer();
+			ply.SetWorldPosition(PropHunt.GetSpawns()[rnd.Next(0,PropHunt.GetSpawns().Length)].GetWorldPosition());
+			ply.SetStatusBarsVisible(true);
+			ply.SetNametagVisible(true);
+			ply.SetInputEnabled(true);
+			ply.GiveWeaponItem(WeaponItem.AXE);
+			ply.GiveWeaponItem(WeaponItem.MAGNUM);
+			ply.GiveWeaponItem(WeaponItem.M60);
+		}
+	}
+	public void dmg(){
+		if(user != null){
+			IPlayer ply = user.GetPlayer();
+
+			if(ply != null && !ply.IsRemoved && !ply.IsDead){
+
+				PlayerModifiers mod = ply.GetModifiers();
+				IPlayerStatistics stats = ply.Statistics;
+
+				if(stats.TotalMeleeAttackSwings != hits && mod.CurrentHealth > 1){
+					hits = stats.TotalMeleeAttackSwings;
+					mod.CurrentHealth -= 1;
+				}
+				if(stats.TotalShotsFired != shots && mod.CurrentHealth > 2){
+					shots = stats.TotalShotsFired;
+					mod.CurrentHealth -= 2;
+				}
+
+				ply.SetModifiers(mod);
+			}
+
+		}
+	}
+	public void giveHealth(){
+		if(user != null){
+			IPlayer ply = user.GetPlayer();
+			if(ply != null && !ply.IsRemoved && !ply.IsDead){
+				PlayerModifiers mod = ply.GetModifiers();
+
+				mod.CurrentHealth += 75;
+
+				ply.SetModifiers(mod);
+			}
+
+		}
+	}
+}
+
+public void knock(TriggerArgs args){
+	if(args.Sender is IPlayer && WarmupTime == -1){
+		if((args.Sender as IPlayer).Name == (args.Caller as IObject).CustomID){
+			foreach(IObject obj in Game.GetObjectsByCustomID((args.Caller as IObject).CustomID)){
+				if(obj != (args.Caller as IObject)){
+					Game.CreateDialogue(Taunts[rnd.Next(0,Taunts.Length)],obj,(args.Sender as IPlayer).Name,350);
+				}
+			}
+		}
+	}
+	if(args.Sender is IPlayer && WarmupTime != -1){
+		if((args.Sender as IPlayer).Name == (args.Caller as IObject).CustomID){
+			foreach(Prop o in props){
+				if(o.user == (args.Sender as IPlayer).GetUser()){
+					o.switchObject();
+				}
+			}
+		}
+	}
+}

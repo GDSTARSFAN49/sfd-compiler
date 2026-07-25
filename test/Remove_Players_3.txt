@@ -1,0 +1,56 @@
+public static Events.PlayerDeathCallback e_PlayerDeath = null;
+public static Events.ObjectCreatedCallback e_ObjectCreated = null;
+
+public static void OnStartup(){
+e_PlayerDeath = Events.PlayerDeathCallback.Start(OnPlayerDeath);
+e_ObjectCreated = Events.ObjectCreatedCallback.Start(OnObjectCreated);
+}
+
+public void OnShutdown(){
+	
+	if(e_PlayerDeath != null)
+		e_PlayerDeath.Stop();
+
+	if(e_ObjectCreated != null)
+		e_ObjectCreated.Stop();
+}
+
+public static void OnPlayerDeath(IPlayer ply, PlayerDeathArgs args){
+				if(!args.Removed && ply.CustomID != "")
+				Game.CreateDialogue(ply.CustomID, ply, ply.Name, -1, false);
+
+	if(!args.Removed)
+		CreateTimer(5000, 1, "DestroyObject", ply.UniqueID.ToString());
+}
+
+public static void OnObjectCreated(IObject[] objects){
+	
+	foreach(IObject obj in objects){
+		
+		if(obj.Name.Contains("Giblet"))
+			CreateTimer(5000, 1, "DestroyObject", obj.UniqueID.ToString());
+	}
+}
+
+public void DestroyObject(TriggerArgs args){
+	
+	if(args.Caller is IObject){
+		string cID = (args.Caller as IObject).CustomID;
+		
+		IObject obj = Game.GetObject(Int32.Parse(cID));
+		
+		if(obj != null)
+			obj.Destroy();
+
+				(args.Caller as IObject).Remove();
+	}
+}
+
+public static void CreateTimer(int interval, int count, string method, string id) {
+    IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger"); 
+    timerTrigger.SetIntervalTime(interval);
+    timerTrigger.SetRepeatCount(count);
+    timerTrigger.SetScriptMethod(method);
+    timerTrigger.CustomId = id;
+    timerTrigger.Trigger();
+}

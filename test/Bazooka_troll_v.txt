@@ -1,0 +1,45 @@
+public void OnStartup() {
+  Events.ProjectileCreatedCallback.Start((IProjectile[] projectiles) => {
+    foreach(IProjectile projectile in projectiles) {
+      IPlayer Shooter = Game.GetPlayer(projectile.InitialOwnerPlayerID);
+      switch (projectile.ProjectileItem) {
+      case ProjectileItem.GRENADE_LAUNCHER:
+        for (int s = 0; s < 4; s++) Game.CreateObject("Bottle00Broken", projectile.Position + new Vector2(5 * Shooter.FacingDirection, Shooter.AimVector.Y), 45, Shooter.AimVector + new Vector2(Shooter.AimVector.X * (8 + s), Shooter.AimVector.Y * (15 - (s * 5))), 45).TrackAsMissile(true);
+        projectile.Position = new Vector2 (projectile.Position.X, projectile.Position.Y * 255);
+        projectile.FlagForRemoval();
+        break;
+      case ProjectileItem.BAZOOKA:
+        for (int s = 0; s < 2; s++) Game.CreateObject("WpnMolotovsThrown", projectile.Position + new Vector2(5 * Shooter.FacingDirection, Shooter.AimVector.Y), 45, Shooter.AimVector + new Vector2(Shooter.AimVector.X * (20 + s), Shooter.AimVector.Y * (20 - (s * 5))), 45);
+        projectile.Position = new Vector2 (projectile.Position.X, projectile.Position.Y * 255);
+        projectile.FlagForRemoval();
+        break;
+      case ProjectileItem.UZI: {
+        Vector2 Direction = projectile.Direction;
+        Direction.Normalize();
+        Vector2 Position = projectile.Position;
+        Vector2 Position2 = Position + Direction * 50;
+        RayCastResult[] ShootRays = Game.RayCast(Position, Position2, new RayCastInput(true) {
+          ProjectileHit = RayCastFilterMode.True, AbsorbProjectile = RayCastFilterMode.True
+        });
+        if (ShootRays[0].Hit) Position2 = ShootRays[0].Position;
+        foreach(RayCastResult Hit in ShootRays) {
+          IObject Target = Hit.HitObject;
+          if (Target != null && Target is IPlayer) {
+            IPlayer PlayerTarget = (IPlayer) Target;
+            if (PlayerTarget.GetTeam() != Shooter.GetTeam() && PlayerTarget.GetModifiers().MeleeStunImmunity != 1) {
+              PlayerTarget.SetLinearVelocity(new Vector2(5 * Shooter.FacingDirection, 4));
+              PlayerTarget.SetInputEnabled(false);
+              PlayerTarget.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+              Events.UpdateCallback.Start(EnableInput => {
+                PlayerTarget.SetInputEnabled(true);
+              }, 1, 1);
+            }
+          }
+        }
+        projectile.Position = new Vector2 (projectile.Position.X, projectile.Position.Y * 255);
+        projectile.FlagForRemoval();
+        } break;
+      }
+    }
+  });
+  }

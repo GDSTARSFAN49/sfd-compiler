@@ -1,0 +1,151 @@
+/*
+* author: #chelog
+* description: Keep the order in your server with this simple yet useful script. No more explaining rules to new players!
+* gamemodes: campaign, survival, versus, custom
+*/
+
+
+//  ______         _                _____              _         _     
+//  | ___ \       | |              /  ___|            (_)       | |    
+//  | |_/ / _   _ | |  ___  ___    \ `--.   ___  _ __  _  _ __  | |_   
+//  |    / | | | || | / _ \/ __|    `--. \ / __|| '__|| || '_ \ | __|  
+//  | |\ \ | |_| || ||  __/\__ \   /\__/ /| (__ | |   | || |_) || |_   
+//  \_| \_| \__,_||_| \___||___/   \____/  \___||_|   |_|| .__/  \__|  
+//                                                       | |           
+//                                                       |_|           
+
+// 			Created by: #chelog                            
+//			Modified by: Sree                              
+// 			Finalized by: KliPeH                           
+
+//	   _____        _    _    _                    
+//   /  ___|      | |  | |  (_)                   		       
+//	  \ `--.   ___ | |_ | |_  _  _ __    __ _  ___ 		       
+//	   `--. \ / _ \| __|| __|| || '_ \  / _` |/ __|		       
+//	  /\__/ /|  __/| |_ | |_ | || | | || (_| |\__ \		       
+//	  \____/  \___| \__| \__||_||_| |_| \__, ||___/		       
+//	                                     __/ |     		      
+//	                                    |___/      	
+
+private const string SERVER_NAME = "\"Metiche\"";		     // Set the name that will "speak" the message ads in chat.
+
+
+private const bool SHOW_POPUP_AD = true;		     // Set to "true" to show the popup message in the beginning of the round.
+private Color POPUP_TEXT_COLOR = new Color(255, 0, 0);	     // Set popup message color on an RGB scale.
+private int POPUP_AD_TIME = 1000 * 5;			     // Duration of ad placement in minutes (miliseconds * X). Only edit X.
+
+
+private const bool SHOW_CHAT_ADS = true;		     // Set to "true" to display in-chat ads, periodically.
+private const bool CHAT_ADS_DISPLAY_ONE_ON_START = true;     // Set to "true" to always display one ad at the beginning of the round.
+private const bool CHAT_ADS_RANDOM_ORDER = true;	     // Set to "true" to enable the shuffling of ad lines.
+private const int CHAT_ADS_INTERVAL = 1000 * 60;	     // Delay between each two chat ads (miliseconds * X). Only edit X.
+
+
+private string POPUP_AD_CONTENT =			     // Modify the popup message here. Do not remove the quote marks or the plus symbols!
+	"REGLAS:\n" +				     								// Make new lines with "\n". The last line has to end with a semi-colon (";")!
+	"- Podeis encontrarlas en el chat, ya que son muchas\n" +
+	"- Lo mas basico: No insultos, no peleas y leer con delicadeza las reglas que estan en comentarios.\n" +
+
+	"-========================-\n" +
+	"LAS REGLAS ESTAN EN EL CHAT.\n" +
+	"You can also use \"/rules\" to show it again! (solo mostrara este mensaje)";
+
+private string[] CHAT_ADS_CONTENT = new string[]{	     // Modify chat ads here. Do not remove the quote marks or the commas!
+	"KICK:",  // Lines are separated by commas (","). The last line doesn't need one!
+	"- Cualquier tipo de INSULTO, OFENSA O SIMILAR hacia cualquier jugador, salvo que haya sido en joda y dicho\njugador afectado se lo tome así.",
+	"- Interrumpir y/o “malograr” el juego, es decir, evitar que los jugadores puedan disfrutar de los mapas (un ejemplo en los mapas como Bridge run, hacer a cada rato dive a los demás jugadores impidiendo que puedan jugar tranquilos). Puede hacerse una que otra vez, pero si es muy repetitivo, incómodo o con malas intenciones, será motivo de sanción.",
+	"- Entrar al servidor y hacer cualquier TIPO DE SPAM (especialmente si es para provocar abandonar el servidor o similar). Se considerará spam siempre y cuando se repita dicho mensaje más de 2 veces.",
+	"- Entrar con nombres exageradamente LARGOS o que contengan alguna OFENSA hacia otro jugador. Dicho esto incluso puede ser considerado como BAN si se repite en más ocasiones.",
+	"- El teamkill estará permitido hasta cierto punto (una única vez o a lo mucho 2 pero que no sean en partidas seguidas), abusar de ello supondrá el KICK inmediato del servidor.",
+	"- Pedir moderador o similar. Si se hace en joda puede ser permitido, mientras no sea molesto.",
+	"- Cualquier tipo de hacer teams para fastidiar a uno o más jugadores. Cabe recalcar que si esto se hace porque dicho jugador infringe una falta, la sanción será para AMBOS.",
+	"- Quejarse repetitivamente de cambiar mapa o de botar a un jugador del servidor. Para eso estamos los mods, aparte que tienen en algunos casos el script de votar. Si por alguna razón dejamos a ciertos jugadores será porque no incumplen las reglas. Recordar que los moderadores hacen su trabajo.",
+	"- Puede ser permisible el uso de HACKS, siempre y cuando no malogre la jugabilidad del servidor y mientras no gane alguna “ventaja significativa” contra los demás jugadores. Cabe aclarar que “ventaja significativa”, se refiere a, por ejemplo, vida infinita, energía infinita, atravesar muros (siempre y cuando sea para evitar que otros jugadores puedan matarlos), etc.",
+	"- Cualquier tipo de “EZ” supondrá la EXPULSIÓN INMEDIATA, siempre y cuando, repito, sea de joda. Esto último tiene que notarse (ejemplo con un “:v” o diciendo “es bait”).",
+	"Cabe aclarar que, obviamente, los jugadores tienen derecho a reclamar (especialmente a mi) por cualquier tipo de falta que cometan, ya que siempre puede haber malentendidos. Aparte que también pueden quejarse si ven algo raro en el server (ejemplo abuso del poder de mod etc).",
+
+	"BAN:",
+	"- El incumplimiento de 3 de las sanciones que implican KICK (puede ser la misma sanción).",
+	"- Intentar hackear, tumbar el servidor, llegando incluso a un BAN PERMANENTE (tanto en SFD como en el discord oficial).",
+	"- Abuso de poder: Moderador, por ejemplo, reviviendo cuando este fue derrotado o haciendo gameover sin sentido.",
+	"- Intentar extraer información de los usuarios sin consentimiento.",
+
+	"REGLAS MODS:",
+	"- Estar en el discord oficial del servidor, ya que aquí se comentará cualquier cosa que pase.",
+	"- Evitar el abuso del poder descrito anteriormente.",
+	"- Cualquier sanción comentarla con el siguiente formato:",
+	"1. El servidor donde se produjeron los actos.",
+	"2. Nombre del usuario.",
+	"3. Su nombre de cuenta de Steam/Pirata/Crack (opcional, pero MUY RECOMENDABLE).",
+	"4. Ban/Kick (el castigo que le dieron).",
+	"5. Motivos del Ban/Kick (si pueden subir capturas mostrando lo que pasa será tomado en cuenta para futuro, no hace falta decir que es muy recomendable hacerlo).",
+
+	"Cabe advertir que, el incumplimiento de estas normas para los mods, podrá acabar desde el quite de MOD hasta el BANEO DEL SERVIDOR.",
+
+	"POR ÚLTIMO, recomiendo (y obligatorio para los MODS) unirse al servidor de Discord, ya que ahí se avisará sobre cualquier actualización de las reglas. Estar muy pendientes ya que NO HABRÁ CONSENTIMIENTO si se incumplen reglas que por cualquier motivo no se leyeron.",
+	"Cualquier queja me lo pueden comunicar a mi Discord: GDSTARSFAN49",
+
+	"BIENVENIDOS A \"METICHE\" SERVIDOR, DISFRUTEN DE LA ESTADÍA ;)",
+	"ATTE: SU AMIGO \"METICHE\""
+};
+
+
+//		 _____             _       
+//		/  __ \           | |      
+//		| /  \/  ___    __| |  ___ 
+//		| |     / _ \  / _` | / _ \
+//		| \__/\| (_) || (_| ||  __/
+//		 \____/ \___/  \__,_| \___|
+
+
+Random rand = new Random();
+
+Events.UserMessageCallback UserMessageCallback = null;
+
+public void OnStartup(){
+
+	if (SHOW_CHAT_ADS){
+		CreateTimer(CHAT_ADS_INTERVAL, 0, "Chat_DisplayAd", "");
+		if (CHAT_ADS_DISPLAY_ONE_ON_START) Chat_DisplayAd(new TriggerArgs(null, null, false));
+	}
+
+	if (SHOW_POPUP_AD){
+		Game.ShowPopupMessage(POPUP_AD_CONTENT, POPUP_TEXT_COLOR);
+		if (POPUP_AD_TIME != 0) CreateTimer(POPUP_AD_TIME, 1, "Popup_HideAd", "");
+	}
+
+UserMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs ua) 
+{ 
+	switch (ua.Command)
+{
+	case "RULES": 
+	Game.ShowPopupMessage(POPUP_AD_CONTENT, POPUP_TEXT_COLOR);
+		if (POPUP_AD_TIME != 0) CreateTimer(POPUP_AD_TIME, 1, "Popup_HideAd", "");
+
+	break;
+}
+}
+
+private int m_curMessageNum = -1;
+public void Chat_DisplayAd(TriggerArgs args){
+	Game.ShowChatMessage(SERVER_NAME + ": ");
+	for(int i = 0; i < CHAT_ADS_CONTENT.Length; i++){
+		Game.ShowChatMessage("/MSG" + CHAT_ADS_CONTENT[i]);
+	}
+}
+
+public void Popup_HideAd(TriggerArgs args){
+	Game.HidePopupMessage();
+}
+
+private void CreateTimer(int interval, int count, string method, string id) {
+	IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger"); 
+	timerTrigger.SetIntervalTime(interval);
+	timerTrigger.SetRepeatCount(count);
+	timerTrigger.SetScriptMethod(method);
+	timerTrigger.CustomId = id;
+	timerTrigger.Trigger();
+}

@@ -1,0 +1,26 @@
+const float RANDOM_CHANCE = 0.9f;
+
+Random rnd = new Random();
+
+public void OnStartup()
+{
+	if (!Game.IsFirstUpdate)
+	{
+		return;
+	}
+	
+	Events.UpdateCallback.Start(SpawnRandomBoxes, 75, 8);
+	
+}
+
+public void SpawnRandomBoxes(float ms)
+{
+	foreach (IPlayer plr in Game.GetPlayers())
+	{
+      if (!plr.IsDead && rnd.NextDouble() <= RANDOM_CHANCE && plr.GetUser() != null)
+		{
+			Vector2 pos = plr.GetWorldPosition();
+			Game.CreateObject("SupplyCrate00", pos + Vector2.UnitY * 10f);
+		}
+	}
+}

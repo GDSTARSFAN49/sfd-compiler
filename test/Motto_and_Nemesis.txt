@@ -1,0 +1,213 @@
+IScriptStorage file;
+bool GameOverOnce = false;
+
+Random rnd = new Random();
+string Win_Text = "";
+
+Events.UserMessageCallback m_userMessageCallback = null;
+
+//
+Color cNotify = new Color(255,255,0);
+Color cHelp = new Color(0, 255, 119);
+Color cHelp2 = new Color(252, 114, 50);
+//
+
+public void OnStartup(){
+
+	file = Game.LocalStorage;
+
+	//Nemesis Feature - Let players decide who don't want to play with
+	foreach(IPlayer ply in Game.GetPlayers()){
+
+		//Find Enemy from file
+		string enemy = getKey(ply.Name + ",ENEMY");
+
+		//Use if on same teams
+		if(enemy != "" && ply.GetTeam() != PlayerTeam.Independent){
+			
+			//Cycle through to find possible enemy
+			foreach(IPlayer trg in Game.GetPlayers()){
+
+				//Find Enemy
+				if(trg.Name == enemy && trg != ply && trg.GetTeam() == ply.GetTeam()){
+
+					//Find players to switch with
+					foreach(IPlayer fr in Game.GetPlayers()){
+
+						//Find their enemies
+						string frgene = getKey(trg.Name + ",ENEMIES");
+
+						if(frgene == "" && fr != trg && fr != ply){
+							//Switch teams
+							PlayerTeam temp = ply.GetTeam();
+							ply.SetTeam(fr.GetTeam());
+							fr.SetTeam(temp);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+
+	IObjectTimerTrigger stepper = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	stepper.SetIntervalTime(0);	
+	stepper.SetRepeatCount(0);
+	stepper.SetScriptMethod("GameTick");
+	stepper.Trigger();
+}
+
+public void OnShutdown(){
+	changeKey("Cycles",1);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs args){
+	if(args.IsCommand){
+		if(args.Command == "KSHELP"){
+			Game.ShowChatMessage("'/RESETMOTTO' Resets your Motto To Default",cHelp,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/MOTTO' Show Your Current Motto",cHelp,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/MOTTO [X]' Change Your Motto To X",cHelp,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/RESETNEMESIS' Resets your Nemsis To Default",cHelp2,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/NEMESIS' Show Your Current Nemisis",cHelp2,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/NEMSIS [X]' Change Your Nemisis To X",cHelp2,args.User.UserIdentifier);
+		}
+		if(args.Command == "RESETMOTTO"){
+			changeKey(args.User.Name + ",MOTTO","");
+			Game.ShowChatMessage("Motto Was Reset",cNotify,args.User.UserIdentifier);
+		}
+		if(args.Command == "NEMESIS"){
+			if(args.CommandArguments != ""){
+				changeKey(args.User.Name + ",ENEMY",args.CommandArguments);
+				Game.ShowChatMessage("Nemesis Set To [" + args.CommandArguments + "]",cNotify,args.User.UserIdentifier);
+			}else{
+				string nem = getKey(args.User.Name+",ENEMY");
+				if(nem != ""){
+					Game.ShowChatMessage("Your Nemesis Is [" + nem + "]",cNotify,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Your Nemesis Is [-NOBODY-]",cNotify,args.User.UserIdentifier);
+				}
+			}
+		}
+		if(args.Command == "RESETNEMESIS"){
+			changeKey(args.User.Name + ",ENEMY","");
+			Game.ShowChatMessage("Nemesis Was Reset",cNotify,args.User.UserIdentifier);
+		}
+		if(args.Command == "MOTTO"){
+			if(args.CommandArguments != ""){
+				changeKey(args.User.Name + ",MOTTO",args.CommandArguments);
+				Game.ShowChatMessage("Motto Changed To [" + args.CommandArguments + "]",cNotify,args.User.UserIdentifier);
+			}else{
+				string mot = getKey(args.User.Name+",MOTTO");
+				if(mot != ""){
+					Game.ShowChatMessage("Your Motto Is [" + mot + "]",cNotify,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Your Motto Is [-DEFAULT-]",cNotify,args.User.UserIdentifier);
+				}
+			}
+		}
+	}
+}
+
+int timer = 0;
+public void GameTick(TriggerArgs args){
+
+	if(Game.IsGameOver){
+		timer ++;
+	}
+	if(Game.IsGameOver && timer > 300){
+		if(!GameOverOnce){
+			Gameover();
+			GameOverOnce = true;
+		}
+		Game.SetGameOver(Win_Text);
+	}
+}
+
+public void ShowWinners(List<IPlayer> Winners){
+	List<string> msg = new List<string>();
+	int team = 0;
+	foreach(IPlayer ply in Winners){
+		string temp = getKey(ply.Name + ",MOTTO");
+		if(temp != ""){
+			msg.Add(temp);
+			team = (int)ply.GetTeam();
+		}
+	}
+	if(msg.Any()){
+		if(team == 0){
+			Win_Text = "\"" + msg[rnd.Next(0,msg.Count)] + "\"\n-" + Winners[0].Name;
+		}else{
+			Win_Text = "\"" + msg[rnd.Next(0,msg.Count)] + "\"\n-Team" + team;
+		}
+	}
+}
+
+public void changeKey(string name,object obj){
+	if(obj is string){
+		file.SetItem(name,(string)obj);
+	}
+	if(obj is int){
+		int x = 0;
+		file.TryGetItemInt(name,out x);
+		x += (int)obj;
+		file.SetItem(name,(int)obj);
+	}
+}
+
+public string getKey(string name){
+	object obj = "";
+	if(!file.TryGetItem(name, out obj)){
+		obj = "";
+	}
+	return obj.ToString();
+}
+
+public void Gameover(){
+	int[] teams = new int[5];
+	List<IPlayer> Winners = new List<IPlayer>();
+
+	foreach(IPlayer o in Game.GetPlayers()){
+		if(!o.IsDead && !o.IsRemoved){
+			teams[(int)o.GetTeam()] ++;
+		}	
+	}
+	if(teams[0] == 1 && teams[1] + teams[2] + teams[3] + teams[4] == 0){
+		foreach(IPlayer o in Game.GetPlayers()){
+			if((int)o.GetTeam() == 0 && !o.IsDead && !o.IsRemoved){
+				Winners.Add(o);
+			}
+		}
+	}
+	if(teams[1] >= 1 && teams[0] + teams[2] + teams[3] + teams[4] == 0){
+		foreach(IPlayer o in Game.GetPlayers()){
+			if((int)o.GetTeam() == 1){
+				Winners.Add(o);
+			}
+		}
+	}
+	if(teams[2] >= 1 && teams[0] + teams[1] + teams[3] + teams[4] == 0){
+		foreach(IPlayer o in Game.GetPlayers()){
+			if((int)o.GetTeam() == 2){
+				Winners.Add(o);
+			}
+		}
+	}
+	if(teams[3] >= 1 && teams[0] + teams[1] + teams[2] + teams[4] == 0){
+		foreach(IPlayer o in Game.GetPlayers()){
+			if((int)o.GetTeam() == 3){
+				Winners.Add(o);
+			}
+		}
+	}
+	if(teams[4] >= 1 && teams[0] + teams[1] + teams[2] + teams[3] == 0){
+		foreach(IPlayer o in Game.GetPlayers()){
+			if((int)o.GetTeam() == 4){
+				Winners.Add(o);
+			}
+		}
+	}	
+	if(Winners.Count > 0){
+		ShowWinners(Winners);
+	}
+}

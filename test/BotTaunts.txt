@@ -1,0 +1,783 @@
+/*
+* author: ebomb09
+* description: A modified KillFeed script that automatically displays speech-bubble taunts on different player actions.
+* gamemodes: versus, custom
+*/
+
+
+
+//  _____                 _      _____           _       _   
+// |_   _|               | |    /  ___|         (_)     | |  
+//   | | __ _ _   _ _ __ | |_   \ `--.  ___ _ __ _ _ __ | |_ 
+//   | |/ _` | | | | '_ \| __|   `--. \/ __| '__| | '_ \| __|
+//   | | (_| | |_| | | | | |_   /\__/ / (__| |  | | |_) | |_ 
+//   \_/\__,_|\__,_|_| |_|\__|  \____/ \___|_|  |_| .__/ \__|
+//                                              | |        
+//                                              |_|        
+
+
+// 		    Created by: ebomb09
+//		    Modified by: sree / NearHuscarl
+// 		    Finalized by: KliPeH
+
+
+//	  _____        _    _    _                    
+// 	 /  ___|      | |  | |  (_)                   
+//	 \ `--.   ___ | |_ | |_  _  _ __    __ _  ___ 
+//	  `--. \ / _ \| __|| __|| || '_ \  / _` |/ __|
+//	 /\__/ /|  __/| |_ | |_ | || | | || (_| |\__ \
+//	 \____/  \___| \__| \__||_||_| |_| \__, ||___/
+//	                                    __/ |     
+//	                                   |___/      
+
+
+
+static int INVERSE_PROBABILITY = 1; 				// Chance to trigger a taunt. Higher value = lesser chance for a taunt to display.
+								// Use a range of 1-5. Set to 1 to always show taunts.
+
+static bool ONLY_ENABLE_TAUNTS_ON_BOTS = true;			// Set to "false" to apply taunts to human players as well as bots.
+
+
+static bool ASSIGN_COLORS = false;     
+      
+
+static Color[] Colors = {						// Change speech-bubble border colors. Do NOT add or remove colors as each color represents a player slot.
+								// The predefined colors can be customized via "new Color(R, G, B)" statements.
+Color.Red,
+Color.Green,
+Color.Yellow,
+Color.Blue,
+Color.Magenta,
+Color.Cyan,
+Color.Black,
+Color.White
+
+};         
+
+
+//	       _____                 _       			
+//	      |_   _|               | |      			// Put each taunt into its own quotation-mark wrapper.
+//	        | | __ _ _   _ _ __ | |_ ___ 			// Separate taunt lines with commas (",").
+//	        | |/ _` | | | | '_ \| __/ __|			// The last taunt in a set does not require a comma.
+//	        | | (_| | |_| | | | | |_\__ \			// A quote wrapper can be left empty to disable an entire taunt block (see examples).
+//	        \_/\__,_|\__,_|_| |_|\__|___/			// Do not remove the curly bracket/colon combo ("};") at the end of the arrays!
+
+
+
+static string[] MeleeKillerTaunts = {				// Triggers on a player killing with a melee weapon.
+
+"die",
+"lol",
+"nice try kid",
+"try harder",
+"are you even trying",
+"embarrassing",
+"noob",
+"ez",
+"xD",
+"xd im lagging",
+"pro",
+"gg",
+"snake fist into dashur",
+"wall tap into reverse down shot",
+"pre roll into x motion kill",
+"roll skip into reverse down kick",
+"barrel grabbing fly into x penetration",
+"ultra high roll into triple flip",
+"dive stop into the over down",
+"speed grab up into stopmotion kill",
+"speed up into syplax",
+"death jump into closed down blow kill",
+"slike into ricochet kill",
+"reverse dive punch into pheonix splash",
+"upmotion skill"
+
+};
+
+static string[] GunKillerTaunts = {				// Triggers on a player killing with a ranged weapon.
+
+"god aim",
+"ez",
+"nice try",
+"are you even trying",
+"lrn 2 play",
+"haha",
+"gg",
+"rekt",
+"xD",
+"xd kill",
+"ok last round",
+"die <enemy>"
+
+};
+
+static string[] KilledByMeleeTaunts = { 			// Triggers on a player killed by a melee weapon.
+
+"tryhard",
+"try harder",
+"nice spam",
+"spammer",
+"runner",
+"lagger",
+"lag",
+"noob",
+"wtf i blocked",
+"bad server",
+"rat",
+"no",
+"ok",
+"how",
+"what",
+"wow",
+"yikes",
+"my keyboard disconnected",
+"my controller died",
+"thx rage quit",
+"1v1 next time",
+"afk 2 min",
+":v",
+";u",
+".-."
+
+};
+
+static string[] KilledByGunTaunts = { 				// Triggers on a player killed by a ranged weapon.
+
+"tryhard",
+"try harder",
+"unfair",
+"rly",
+"wow",
+"cmon",
+"cheater",
+"hacker",
+"gunner",
+"camper",
+"teamer",
+"typekill",
+"nice hacks",
+"<enemy> hacker",
+"host kick <enemy>",
+"zero skill",
+"aim off noob",
+"stop camp noob",
+"noob",
+"lag",
+"ok",
+"e",
+":v",
+";u",
+".-."
+
+};
+
+static string[] GrabbedTaunts = { 				// Triggers on a player getting grabbed.
+
+"grab not allowed",
+"stop grab noob",
+"wtf grab",
+"grabber",
+"<enemy> grabber",
+"omfg",
+"noob",
+"stop",
+"enough"
+
+};
+
+static string[] GrabberTaunts = { 				// Triggers on a player using a grab.
+
+"ez",
+"lol",
+"haha",
+"xd",
+"xD",
+"maybe next time"
+
+};
+
+static string[] ProximityWepPickupTaunts = {			// Triggers on a player witnessing another pick up a ranged weapon (proximity).
+
+"stealer",
+"wow took my weapon rly",
+"melee only",
+"1v1 fist only",
+"it was mine",
+"pls let me have it <enemy>",
+"give it back <enemy>"
+
+};
+
+static string[] OnFireTaunts = { 				// Triggers on a player set on fire.
+
+"ugh",
+"argh",
+"ow",
+"ouch",
+"fire op",
+"nerf fire",
+"omg fire",
+"wtf fire",
+"fix fire",
+"ban fire",
+"goddamn fire"
+
+};    
+
+static string[] OnFallTaunts = { 				// Triggers on a player receiving fall damage.
+
+"finger slipped",
+"wrong button",
+"oops",
+"oof",
+"w",
+"parkour",
+"fly"
+
+};
+
+static string[] OnRocketRideTaunts = { 				// Triggers on a player rocket riding.
+
+"bazooker",
+"bazooka op",
+"cheap",
+"of course",
+"noob"
+
+}; 
+
+static string[] LowHealthTaunts = { 				// Triggers on a player reaching a low health threshold (30 HP).
+
+"no",
+"help",
+"please",
+"let me heal",
+"rat",
+"2v1",
+"coward",
+"not fair",
+"no honor",
+"stop"
+
+};
+
+static string[] ExplodeTaunts = {				// Triggers on a player receiving explosive damage.
+
+"boom xD",
+"oof",
+"g"
+
+};
+
+static string[] PowerupTaunts = {          			// Triggers on a player activating a strength boost.
+
+"too strong",
+"time to die"
+
+};
+
+static string[] SpeedupTaunts = {		 		// Triggers on a player activating a speed boost.
+
+"zoom into die",
+"gotta go fast"
+
+};
+
+static Dictionary<WeaponItem,					// Triggers when a specific weapon is picked up.
+string[]> WepPickupTaunts = new Dictionary<WeaponItem, string[]>()
+
+{
+
+    { WeaponItem.MACHETE,		new string[] { "" } },	// Melee weapons.
+    { WeaponItem.KATANA,		new string[] { "" } },
+    { WeaponItem.PIPE,			new string[] { "" } },
+    { WeaponItem.BAT,			new string[] { "" } },
+    { WeaponItem.AXE,			new string[] { "" } },
+    { WeaponItem.CHAIN,			new string[] { "" } },
+    { WeaponItem.KNIFE,			new string[] { "" } },
+    { WeaponItem.WHIP,			new string[] { "" } },
+    { WeaponItem.BATON,			new string[] { "" } },
+    { WeaponItem.LEAD_PIPE,		new string[] { "" } },
+    { WeaponItem.SHOCK_BATON,		new string[] { "" } },
+    { WeaponItem.CHAINSAW,		new string[] { "" } },
+
+    { WeaponItem.MAGNUM,		new string[] { "" } },	// Secondary weapons.
+    { WeaponItem.PISTOL,		new string[] { "" } },
+    { WeaponItem.SILENCEDPISTOL,	new string[] { "" } },
+    { WeaponItem.UZI,			new string[] { "" } },
+    { WeaponItem.SILENCEDUZI,		new string[] { "" } },
+    { WeaponItem.FLAREGUN,		new string[] { "" } },
+    { WeaponItem.REVOLVER,		new string[] { "" } },
+    { WeaponItem.PISTOL45,		new string[] { "" } },
+    { WeaponItem.MACHINE_PISTOL,	new string[] { "" } },
+
+    { WeaponItem.BAZOOKA,		new string[] { "" } },	// Primary weapons.
+    { WeaponItem.ASSAULT,		new string[] { "" } },
+    { WeaponItem.TOMMYGUN,		new string[] { "" } },
+    { WeaponItem.M60,			new string[] { "" } },
+    { WeaponItem.SHOTGUN,		new string[] { "" } },
+    { WeaponItem.SNIPER,		new string[] { "" } },
+    { WeaponItem.SAWED_OFF,		new string[] { "" } },
+    { WeaponItem.CARBINE,		new string[] { "" } },
+    { WeaponItem.FLAMETHROWER,		new string[] { "" } },
+    { WeaponItem.GRENADE_LAUNCHER,	new string[] { "" } },
+    { WeaponItem.SMG,			new string[] { "" } },
+    { WeaponItem.DARK_SHOTGUN,		new string[] { "" } },
+    { WeaponItem.MP50,			new string[] { "" } },
+    { WeaponItem.BOW,			new string[] { "" } },
+
+    { WeaponItem.GRENADES,		new string[] { "" } },	// Equipment.
+    { WeaponItem.MOLOTOVS,		new string[] { "" } },
+    { WeaponItem.C4,			new string[] { "" } },
+    { WeaponItem.MINES,			new string[] { "" } },
+    { WeaponItem.SHURIKEN,		new string[] { "" } },
+
+    { WeaponItem.PILLS,			new string[] { "" } },	// Medication.
+    { WeaponItem.MEDKIT,		new string[] { "" } },
+
+    { WeaponItem.STRENGTHBOOST,		new string[] { "" } },	// Powerups.
+    { WeaponItem.SPEEDBOOST,		new string[] { "" } },
+    { WeaponItem.BOUNCINGAMMO,		new string[] { "" } },
+    { WeaponItem.FIREAMMO,		new string[] { "" } },
+    { WeaponItem.SLOWMO_5,		new string[] { "" } },
+    { WeaponItem.SLOWMO_10,		new string[] { "" } },
+    { WeaponItem.LAZER,			new string[] { "" } }
+
+};
+
+
+
+//	 _____             _       
+//	/  __ \           | |      
+//	| /  \/  ___    __| |  ___ 
+//	| |     / _ \  / _` | / _ \
+//	| \__/\| (_) || (_| ||  __/
+//	 \____/ \___/  \__,_| \___|
+
+
+
+public static Lazy<Random> Random = new Lazy<Random>(() => new Random());
+
+public void OnStartup()
+{
+    Taunts = new List<PlayerTaunt>();
+	  Events.UpdateCallback.Start(OnUpdate);
+
+    CreateTimer(1, 0, "Update");
+    CreateTimer(100, 0, "Update2");
+}
+
+private static HashSet<int> _playerIDs = new HashSet<int>();
+private static void OnUpdate(float e)
+{
+    foreach (var player in Game.GetPlayers())
+    {
+        if (!_playerIDs.Contains(player.UniqueID))
+        {
+            _playerIDs.Add(player.UniqueID);
+            OnPlayerCreated(player);
+        }
+    }
+}
+private static void OnPlayerCreated(IPlayer player)
+{
+  var user = player.GetUser();
+  Taunts.Add(new PlayerTaunt(player, Colors[user == null ? 0 : user.GameSlotIndex]));
+}
+
+static List<PlayerTaunt> Taunts = new List<PlayerTaunt>();
+
+public static PlayerTaunt GetPlayerTaunt(IPlayer p)
+{
+    return Taunts.FirstOrDefault(t => t.player == p);
+}
+
+public class PlayerTaunt
+{
+    public float last { get; set; }
+    public bool isalreadydead {get; set; }
+    public float falldmg { get; set; }
+    public bool active { get; set; }
+    public bool burning { get; set; }
+    public bool fall { get; set; } 
+    public bool help { get; set; }
+    public IPlayer player { get; set; }
+    public MeleeWeaponItem mw { get; set; }
+    public RifleWeaponItem rw { get; set; }
+    public HandgunWeaponItem hw { get; set; }
+    public PowerupWeaponItem puw { get; set; }
+    public ThrownWeaponItem tw { get; set; }
+    public bool powerupActive { get; set; }
+    public float powerupCooldown { get; set; }   
+    public bool speedupActive { get; set; }
+    public float speedupCooldown { get; set; }
+    public int prevshotsfired { get; set; }
+    public int prevhitstaken { get; set; }
+    public float prevexpdmg { get; set; }
+    public int lasthit { get; set; }
+    public int lastshot { get; set; }
+    public int dir { get; set; }
+    public Color color { get; set; }
+
+    public PlayerTaunt (IPlayer ply, Color col)
+    {
+        this.player = ply;
+        this.active = false;
+        this.burning = false;
+        this.isalreadydead = false;
+        this.mw = player.CurrentMeleeWeapon;
+        this.rw = player.CurrentPrimaryWeapon;
+        this.hw = player.CurrentSecondaryWeapon;
+        this.puw = player.CurrentPowerupItem;
+        this.tw = player.CurrentThrownItem;
+        this.prevshotsfired = player.Statistics.TotalShotsFired;
+        this.prevhitstaken = player.Statistics.TotalProjectilesHitBy;
+        this.prevexpdmg = player.Statistics.TotalExplosionDamageTaken;
+        this.powerupActive = false;
+        this.speedupActive = false;
+        this.lasthit = 0;
+        this.lastshot = 0;
+        this.dir = player.FacingDirection;
+
+        if (ASSIGN_COLORS)
+            this.color = col;
+
+        else 
+            this.color = Color.White;
+    }
+
+    public void Taunt(string taunt)
+    {
+        if (!active && !isalreadydead && this.player != null)
+        {
+            if (ONLY_ENABLE_TAUNTS_ON_BOTS && !this.player.IsBot)
+                return;
+
+            if (Random.Value.Next(INVERSE_PROBABILITY) == 0) 
+            {
+                this.last = Game.TotalElapsedGameTime;
+                this.active = true;
+
+                if (taunt != null && !string.IsNullOrWhiteSpace(taunt))
+                    Game.CreateDialogue(taunt, this.color, this.player, showInChat: false);
+            }
+        }
+    }
+
+    public void Taunt(string taunt, Color color)
+    {
+        if (!active && !isalreadydead && this.player != null)
+        {
+            if (ONLY_ENABLE_TAUNTS_ON_BOTS && !this.player.IsBot)
+                return;
+
+            if (Random.Value.Next(INVERSE_PROBABILITY) == 0) 
+            {
+                this.last = Game.TotalElapsedGameTime;
+                this.active = true;
+
+                if (taunt != null && !string.IsNullOrWhiteSpace(taunt))
+                    Game.CreateDialogue(taunt, color, this.player, showInChat: false);
+            }
+        }
+    }
+
+    public void Track()
+    {
+         if (this.player.IsRemoved || this.player == null)
+             return;
+ 
+         if (this.prevexpdmg != player.Statistics.TotalExplosionDamageTaken)
+         {
+             if (player.Statistics.TotalExplosionDamageTaken - this.prevexpdmg > 30)
+             {
+                 this.Taunt(ExplodeTaunts[Random.Value.Next(ExplodeTaunts.Count())]);
+             }
+
+             this.prevexpdmg = player.Statistics.TotalExplosionDamageTaken;
+         }
+
+         if (this.player.IsRocketRiding && this.player != null)
+         {
+             this.Taunt(OnRocketRideTaunts[Random.Value.Next(OnRocketRideTaunts.Count())]);
+         }
+ 
+         if (this.player.IsStrengthBoostActive && !this.powerupActive)
+         {
+             this.Taunt(PowerupTaunts[Random.Value.Next(PowerupTaunts.Count())]);
+             this.powerupActive = true;
+             this.powerupCooldown = player.GetStrengthBoostTime() + Game.TotalElapsedGameTime;
+         }
+
+         if (this.player.IsSpeedBoostActive && !this.speedupActive)
+         {
+             this.Taunt(SpeedupTaunts[Random.Value.Next(SpeedupTaunts.Count())]);
+             this.speedupActive = true;
+             this.speedupCooldown = player.GetSpeedBoostTime() + Game.TotalElapsedGameTime;
+         }
+
+         var currentMelee = this.player.CurrentMeleeWeapon;
+         var currentRifle = this.player.CurrentPrimaryWeapon;
+         var currentHandgun = this.player.CurrentSecondaryWeapon;
+         var currentPowerup = this.player.CurrentPowerupItem;
+         var currentThrown = this.player.CurrentThrownItem;
+
+         var previousMelee = this.mw;
+         var previousRifle = this.rw;
+         var previousHandgun = this.hw;
+         var previousPowerup = this.puw;
+         var previousThrown = this.tw;
+
+         if ((currentRifle.WeaponItem != previousRifle.WeaponItem && currentRifle.WeaponItem != WeaponItem.NONE)     || 
+             (currentHandgun.WeaponItem != previousHandgun.WeaponItem && currentHandgun.WeaponItem != WeaponItem.NONE) ||
+             (currentMelee.WeaponItem != previousMelee.WeaponItem && currentMelee.WeaponItem != WeaponItem.NONE)     ||
+             (currentThrown.WeaponItem != previousThrown.WeaponItem && currentThrown.WeaponItem != WeaponItem.NONE)  ||
+             (currentPowerup.WeaponItem != previousPowerup.WeaponItem && currentPowerup.WeaponItem != WeaponItem.NONE)) 
+         {
+
+             WeaponItem w = WeaponItem.NONE; 
+
+             if (currentRifle.WeaponItem != previousRifle.WeaponItem && currentRifle.WeaponItem != WeaponItem.NONE)
+                 w = currentRifle.WeaponItem;
+
+             if (currentHandgun.WeaponItem != previousHandgun.WeaponItem && currentHandgun.WeaponItem != WeaponItem.NONE)
+                 w = currentHandgun.WeaponItem;
+
+             if (currentMelee.WeaponItem != previousMelee.WeaponItem && currentMelee.WeaponItem != WeaponItem.NONE)
+                 w = currentMelee.WeaponItem;
+
+             if (currentThrown.WeaponItem != previousThrown.WeaponItem && currentThrown.WeaponItem != WeaponItem.NONE)
+                 w = currentThrown.WeaponItem;
+
+             if (currentPowerup.WeaponItem != previousPowerup.WeaponItem && currentPowerup.WeaponItem != WeaponItem.NONE)
+                 w = currentPowerup.WeaponItem;
+
+             if (WepPickupTaunts.Keys.Contains(w))
+                 this.Taunt(WepPickupTaunts[w][Random.Value.Next(WepPickupTaunts[w].Length)]);
+
+             var pos = this.player.GetWorldPosition();
+             var area = new Area(pos.Y + 50, pos.X - 50, pos.Y - 50, pos.X + 50);
+             
+             var otherply = GetPlayerTaunt(Game.GetPlayers().FirstOrDefault(p => area.Contains(p.GetWorldPosition()) && p != this.player));
+             if (otherply != null && !otherply.player.IsDead && (w == currentHandgun.WeaponItem || w == currentRifle.WeaponItem))
+             {
+                 var t = ProximityWepPickupTaunts[Random.Value.Next(ProximityWepPickupTaunts.Count())];
+
+                 if (t.ToLowerInvariant().Contains("<player>")) 
+                     t = t.Replace("<player>", otherply.player.Name);
+
+                 if (t.ToLowerInvariant().Contains("<enemy>")) 
+                     t = t.Replace("<enemy>", this.player.Name);
+
+                 otherply.Taunt(t);
+             }
+         }
+          
+         this.mw = currentMelee;
+         this.rw = currentRifle;
+         this.hw = currentHandgun;
+         this.puw = currentPowerup;
+         this.tw = currentThrown;
+    }
+
+    public void TrackMelee()
+    {
+        if (this.player.IsMeleeAttacking ||
+            this.player.IsKicking        ||
+            this.player.IsJumpAttacking  ||
+            this.player.IsJumpKicking     )
+        {
+            foreach (var p in Taunts.Where(p => p.player != this.player))
+            {
+                var d = Vector2.Distance(p.player.GetWorldPosition(), this.player.GetWorldPosition());
+
+                if ((d < 30) && (p.player != null && p.player.IsDead && !p.isalreadydead) &&
+                    (p.player.GetTeam() == PlayerTeam.Independent || (p.player.GetTeam() != this.player.GetTeam())))
+                {
+                    var t = KilledByMeleeTaunts[Random.Value.Next(KilledByMeleeTaunts.Count())];
+                    var t2 = MeleeKillerTaunts[Random.Value.Next(MeleeKillerTaunts.Count())];
+
+                    if (t.ToLowerInvariant().Contains("<player>")) 
+                        t = t.Replace("<player>", p.player.Name);
+
+                    if (t.ToLowerInvariant().Contains("<enemy>")) 
+                        t = t.Replace("<enemy>", this.player.Name);
+
+                    if (t2.ToLowerInvariant().Contains("<player>")) 
+                        t2 = t2.Replace("<player>", this.player.Name);
+
+                    if (t2.ToLowerInvariant().Contains("<enemy>")) 
+                        t2 = t2.Replace("<enemy>", p.player.Name);
+
+                    p.Taunt(t);
+                    this.Taunt(t2);
+                }   
+            }
+        }
+
+        if (this.player.IsHoldingPlayerInGrab)
+        {
+            var grabbed = Taunts.FirstOrDefault(p => p.player != null && p.player.IsCaughtByPlayerInGrab &&
+                                                     Vector2.Distance(p.player.GetWorldPosition(), this.player.GetWorldPosition()) < 30);
+     
+            if (grabbed != null && !grabbed.player.IsDead)
+            {
+                var t = GrabberTaunts[Random.Value.Next(GrabberTaunts.Count())];   
+                var t2 = GrabbedTaunts[Random.Value.Next(GrabbedTaunts.Count())];         
+
+                if (t.ToLowerInvariant().Contains("<player>")) 
+                    t = t.Replace("<player>", this.player.Name);
+
+                if (t.ToLowerInvariant().Contains("<enemy>")) 
+                    t = t.Replace("<enemy>", grabbed.player.Name);
+
+                if (t2.ToLowerInvariant().Contains("<player>")) 
+                    t2 = t2.Replace("<player>", grabbed.player.Name);
+
+                if (t2.ToLowerInvariant().Contains("<enemy>")) 
+                    t2 = t2.Replace("<enemy>", this.player.Name);
+
+                this.Taunt(t);
+                grabbed.Taunt(t2);
+            }        
+        }
+    }
+
+    public void TrackRanged()
+    {
+        // the logic for this was taken from ebomb's ks script, props to him (:
+
+        if (this.prevhitstaken != this.player.Statistics.TotalProjectilesHitBy)
+        {
+            this.lasthit = 10;
+        }
+
+        this.prevhitstaken = this.player.Statistics.TotalProjectilesHitBy;
+
+        if (this.lasthit != 0)
+        { 
+            this.lasthit--;
+        }
+
+        if (this.prevshotsfired != this.player.Statistics.TotalShotsFired)
+        {
+            this.lastshot = 30;
+        }
+
+        this.dir = this.player.FacingDirection;
+
+        this.prevshotsfired = this.player.Statistics.TotalShotsFired;
+
+        if (lastshot != 0 && !this.player.IsDead)
+        { 
+            lastshot--;		
+            foreach(var p in Taunts.Where(x => !x.player.IsRemoved && !x.isalreadydead))
+            {
+                float d = this.player.GetWorldPosition().X - p.player.GetWorldPosition().X;
+
+                if (p.player.IsDead && (p.player.GetTeam() != this.player.GetTeam() || p.player.GetTeam() == PlayerTeam.Independent) && p.player.IsInputEnabled && 
+                    p.lasthit != 0 && ((dir > 0 && d < 0) || (dir < 0 && d > 0)))
+                {
+                    var t = KilledByGunTaunts[Random.Value.Next(KilledByGunTaunts.Count())];
+                    var t2 = GunKillerTaunts[Random.Value.Next(GunKillerTaunts.Count())];	
+
+                    if (t.ToLowerInvariant().Contains("<player>")) 
+                        t = t.Replace("<player>", p.player.Name);
+
+                    if (t.ToLowerInvariant().Contains("<enemy>")) 
+                        t = t.Replace("<enemy>", this.player.Name);
+
+                    if (t2.ToLowerInvariant().Contains("<player>")) 
+                        t2 = t2.Replace("<player>", this.player.Name);
+
+                    if (t2.ToLowerInvariant().Contains("<enemy>")) 
+                        t2 = t2.Replace("<enemy>", p.player.Name);
+
+                    p.Taunt(t);
+                    this.Taunt(t2);
+                }
+            }
+        }
+    }
+
+    public void TrackFire()
+    {
+        if (!this.player.IsBurning && burning)
+            this.burning = false;
+
+        if (this.player.IsBurning && !burning)
+        {
+            this.burning = true;
+            this.Taunt(OnFireTaunts[Random.Value.Next(OnFireTaunts.Count())]);
+        }
+    }
+}
+
+public void Update2 (TriggerArgs args)
+{
+    foreach (var p in Taunts.Where(t => t.player.IsDead))
+    {
+        p.isalreadydead = true;
+    }
+}
+
+public void Update (TriggerArgs args)
+{
+    foreach (var t in Taunts.Where(t => !t.player.IsRemoved))
+    {
+        t.TrackRanged();
+    }
+
+    foreach (var t in Taunts.Where(t => !t.player.IsDead && t.player != null))
+    {
+        t.Track();
+        t.TrackFire();
+        t.TrackMelee();
+    }
+
+    foreach (var p in Taunts.Where(t => (t.last + 3000) < Game.TotalElapsedGameTime && t.active))
+    {
+        p.active = false;
+    }
+
+    foreach (var p in Taunts.Where(t => !t.help && t.player.GetHealth() < 30 && !t.player.IsDead))
+    {
+        p.Taunt(LowHealthTaunts[Random.Value.Next(LowHealthTaunts.Count())]);
+        p.help = true;
+    }
+
+    foreach (var p in Taunts)
+    {
+        if (p.player.IsDead || Game.GetPlayers().FirstOrDefault(ply => ply == p.player) == null) 
+        {
+            continue;
+        }
+
+        if ((p.player.Statistics.TotalFallDamageTaken > p.falldmg + 20) && !p.player.IsDead && p.player != null)
+        {
+            p.Taunt(OnFallTaunts[Random.Value.Next(OnFallTaunts.Count())]);
+            p.falldmg = p.player.Statistics.TotalFallDamageTaken;
+        }
+    }
+
+    foreach (var p in Taunts.Where(t => (Game.TotalElapsedGameTime > t.powerupCooldown) && t.powerupActive && !t.isalreadydead && !t.player.IsStrengthBoostActive))
+    {
+        p.powerupActive = false;
+    }
+
+    foreach (var p in Taunts.Where(t => (Game.TotalElapsedGameTime > t.speedupCooldown) && t.speedupActive && !t.isalreadydead && !t.player.IsSpeedBoostActive))
+    {
+        p.speedupActive = false;
+    }
+}
+
+static IObjectTimerTrigger CreateTimer(int Interval, int Repeat, string Method) 
+{ 
+    var Timer = Game.CreateObject("TimerTrigger") as IObjectTimerTrigger;
+    Timer.SetIntervalTime(Interval);
+    Timer.SetRepeatCount(Repeat);
+    Timer.SetScriptMethod(Method);
+    Timer.Trigger();
+
+    return Timer;
+}

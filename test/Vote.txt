@@ -1,0 +1,296 @@
+int 		Vote_Type		= 0;
+int		Vote_Wait  		= 0;
+int 		Vote_Timer 		= 0;
+bool 		Vote_Active 	= false;
+string 	Vote_Arg			= "";
+int		Vote_Yes			= 0;
+int		Vote_No			= 0;
+int 		Vote_Need		= 0;
+
+Color cError 		= new Color(255,0,0);
+Color cAccept 		= new Color(0,255,0);
+Color cFail 		= new Color(255, 51, 0);
+Color cProgress	= new Color(255, 153, 0);
+
+Events.UserMessageCallback m_userMessageCallback = null;
+IScriptStorage file;
+
+string[] MapList = {""};
+
+public void OnStartup(){
+	file = Game.LocalStorage;
+
+	file.TryGetItemInt("Vote_Type", out Vote_Type);
+	file.TryGetItemInt("Vote_Wait", out Vote_Wait);
+	file.TryGetItemInt("Vote_Timer", out Vote_Timer);
+	file.TryGetItemBool("Vote_Active", out Vote_Active);
+	file.TryGetItemString("Vote_Arg", out Vote_Arg);
+	file.TryGetItemInt("Vote_Yes", out Vote_Yes);
+	file.TryGetItemInt("Vote_No", out Vote_No);
+	file.TryGetItemInt("Vote_Need", out Vote_Need);
+
+ 	m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+
+	file = Game.LocalStorage;
+	
+	IObjectTimerTrigger stepper = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	stepper.SetIntervalTime(0);	
+	stepper.SetRepeatCount(0);
+	stepper.SetScriptMethod("VoteTick");
+	stepper.Trigger();
+}
+
+public void OnShutdown(){
+	file.SetItem("Vote_Type",Vote_Type);
+	file.SetItem("Vote_Wait",Vote_Wait);
+	file.SetItem("Vote_Timer",Vote_Timer);
+	file.SetItem("Vote_Active",Vote_Active);
+	file.SetItem("Vote_Arg",Vote_Arg);
+	file.SetItem("Vote_Yes",Vote_Yes);
+	file.SetItem("Vote_No",Vote_No);
+	file.SetItem("Vote_Need",Vote_Need);
+}
+
+public void OnUserMessage(UserMessageCallbackArgs args) {
+	if(args.IsCommand){
+		if(args.Command == "VOTEKICK" && !Vote_Active){
+
+			string Name = "";
+			string myarg = args.CommandArguments;
+
+			if(myarg.Length >= 3 && myarg[0] == '<' && myarg[2] == '>'){
+				int slot = (int)myarg[1] - 49;
+				if(0 <= slot && slot < 8){
+					foreach(IUser usr in Game.GetActiveUsers()){
+						if(usr.GameSlotIndex == slot){
+							Name = usr.Name;
+						}
+					}
+				}
+				if(Name == ""){
+					SendMessage(args.User,"No User With Index [" + (slot + 1) + "]",cError);
+				}
+			}else{
+				foreach(IUser usr in Game.GetActiveUsers()){
+					if(usr.Name == myarg){
+						Name = myarg;
+					}
+				}	
+				if(Name == ""){
+					SendMessage(args.User,"No User With Name [" + myarg + "]",cError);					
+				}
+			}			
+			if(Name != args.User.Name){
+				foreach(IUser usr in Game.GetActiveUsers()){
+					if(usr.Name == Name && Game.GetActiveUsers().Length > 2){
+						if(!(usr.IsModerator || usr.IsHost)){
+							StartVote(1,Name);
+							Vote_Yes = 1;
+							NotVoted(args.User);
+							UpdateVote(-1);
+							NotVoted(usr);
+						}else{
+							SendMessage(args.User,"Cannot Kick Moderators",cProgress);
+						}
+					}else if(usr.Name == Name){
+						if(usr.IsModerator || usr.IsHost){
+							SendMessage(args.User,"Cannot Kick Moderators",cProgress);
+						}else{
+							SendMessage(args.User,"Not Enough Players to Start Vote",cProgress);			
+						}
+					}
+				}	
+			}else{
+				SendMessage(args.User,"Cannot Kick Yourself",cProgress);
+			}
+
+		}
+		if(args.Command == "VOTEMAPSKIP" && !Vote_Active){
+			StartVote(2,"");
+			UpdateVote(1);
+			NotVoted(args.User);
+		}
+		if(args.Command == "VOTEMAPEND" && !Vote_Active){
+			StartVote(3,"");
+			UpdateVote(1);
+			NotVoted(args.User);
+		}
+		if(args.Command == "VOTEMAP" && !Vote_Active){
+			bool IsMap = false;
+			string myarg = args.CommandArguments;
+			foreach(string str in MapList){
+				if(myarg.ToUpper() == str.ToUpper()){
+					IsMap = true;
+				}
+			}
+			if(IsMap){
+				StartVote(4,myarg);
+				UpdateVote(1);
+				NotVoted(args.User);	
+			}else{
+				SendMessage(args.User,"No Map With Name [" + myarg + "]",cError);				
+			}
+		}
+		if(args.Command == "Y"){
+			if(Vote_Active && Vote_Wait == 0){
+				if(NotVoted(args.User)){
+					UpdateVote(1);
+				}else{
+					SendMessage(args.User,"You Already Voted",cError);
+				}
+			}else{
+				SendMessage(args.User,"No Vote Active",cError);						
+			}
+		}
+		if(args.Command == "N"){
+			if(Vote_Active && Vote_Wait == 0){
+				if(NotVoted(args.User)){
+					UpdateVote(-1);
+				}else{
+					SendMessage(args.User,"You Already Voted",cError);
+				}
+			}else{
+				SendMessage(args.User,"No Vote Active",cError);						
+			}
+		}
+		if(args.Command == "KSMAPS"){
+			foreach(string str in MapList){
+				SendMessage(args.User,str,cProgress);	
+			}
+		}
+		if(args.Command == "KSMAPINFO"){
+			SendMessage(args.User,"Map Name: " + Game.MapName,cProgress);	
+			SendMessage(args.User,"Map Author: " + Game.MapAuthor,cProgress);	
+		}
+		if(args.Command == "KSHELP"){
+			Game.ShowChatMessage("'/KSMAPS' All KS Enabled Maps",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/KSMAPINFO' Info About Current Map",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/VOTEMAP [X]' Initiate Vote To Change Map To X",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/VOTEMAPEND' Initiate Vote To End Map Round",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/VOTEMAPSKIP' Initiate Vote To Skip This Map",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/VOTEKICK [X]' Initiate Vote To Kick Player X",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/VOTEKICK <X>' Initiate Vote To Kick Player in Slot X",cProgress,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/Y' Agree To Current Vote",cAccept,args.User.UserIdentifier);
+			Game.ShowChatMessage("'/N' Disagree To Current Vote",cFail,args.User.UserIdentifier);
+		}
+	}
+}
+
+public void BroadCastMessage(string msg,Color col){
+	Game.ShowChatMessage(msg,col);
+}
+
+public void SendMessage(IUser usr,string msg,Color col){
+	Game.ShowChatMessage(msg,col,usr.UserIdentifier);
+}
+
+public bool NotVoted(IUser usr){
+	bool voted = false;
+	file.TryGetItemBool(usr.Name,out voted);
+
+	if(!voted){
+		file.SetItem(usr.Name,true);		
+		return true;
+	}else{
+		return false;
+	}
+}
+
+public void UpdateVote(int x){
+	if (x == 1){
+		Vote_Yes ++;
+	}else{
+		Vote_No ++;
+	}
+	BroadCastMessage("Current Vote [" + Vote_Yes + "/" + Vote_No + "]",cProgress);
+}
+
+public void StartVote(int type,string Arg){
+	Vote_Active = true;
+	Vote_Timer = 360;
+	Vote_Type = type;
+	Vote_Arg = Arg;
+	Vote_Need = Game.GetActiveUsers().Length;
+	Vote_Yes = 0;
+	Vote_No = 0;
+	switch(type){
+		case 1:
+			BroadCastMessage("Vote Started To Kick [" + Vote_Arg + "]",cProgress);
+		break;
+		case 2:
+			BroadCastMessage("Vote Started To Skip This Map",cProgress);
+		break;
+		case 3:
+			BroadCastMessage("Vote Started To End This Map",cProgress);
+		break;
+		case 4:
+			BroadCastMessage("Vote Started To Change Map To [" + Vote_Arg + "]",cProgress);
+		break;
+	}
+}
+
+public void EndVote(){
+	if(Vote_Yes > Vote_No && Vote_Yes > Game.GetActiveUsers().Length/2f){
+		switch(Vote_Type){
+			case 1:
+				BroadCastMessage("Vote To Kick [" + Vote_Arg + "] Successful",cAccept);
+				Game.RunCommand("/kick " + Vote_Arg);
+			break;
+			case 2:
+				BroadCastMessage("Vote To Skip Map Successful",cAccept);
+				Game.RunCommand("/NEXTMAP");
+				Game.RunCommand("/GAMEOVER");
+			break;
+			case 3:
+				BroadCastMessage("Vote To End Map Successful",cAccept);
+				Game.RunCommand("/GAMEOVER");
+			break;
+			case 4:
+				BroadCastMessage("Vote To Change Map To [" + Vote_Arg + "] Successful",cAccept);
+				Game.RunCommand("/MAP " + Vote_Arg);
+			break;
+		}
+	}else{
+		switch(Vote_Type){
+			case 1:
+				BroadCastMessage("Vote To Kick [" + Vote_Arg + "] Failed",cFail);
+			break;
+			case 2:
+				BroadCastMessage("Vote To Skip Map Failed",cFail);
+			break;
+			case 3:
+				BroadCastMessage("Vote To End Map Failed",cFail);
+			break;
+			case 4:
+				BroadCastMessage("Vote To Change Map To [" + Vote_Arg + "] Failed",cFail);
+			break;
+		}
+	}
+
+	file.Clear();
+
+	Vote_Arg = "";
+	Vote_Yes = 0;
+	Vote_No = 0;
+	Vote_Need = 0;
+	Vote_Wait = 600;
+}
+
+public void VoteTick(TriggerArgs args){
+	if(Vote_Timer > 1){
+		Vote_Timer --;
+		if(Vote_Yes + Vote_No >= Vote_Need){
+			EndVote();
+			Vote_Timer = 0;
+		} 
+	}else if(Vote_Timer == 1){
+		EndVote();
+		Vote_Timer = 0;
+	}
+	if(Vote_Wait > 1){
+		Vote_Wait --;
+	}else if(Vote_Wait == 1){
+		Vote_Active = false;
+		Vote_Wait = 0;
+	}
+}

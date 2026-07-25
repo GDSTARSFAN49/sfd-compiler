@@ -1,0 +1,280 @@
+		BotBehaviorSet SmartAI = new BotBehaviorSet(){
+		ChaseRange = 999,
+		GuardRange = 120,
+
+		RangedWeaponUsage = true,
+		MeleeWeaponUsage = true,
+		OffensiveClimbingLevel = 1.0f,
+		OffensiveEnrageLevel = 0.5f,
+		OffensiveSprintLevel = 1.0f,
+		RangedWeaponAccuracy = 0.999f, 
+		RangedWeaponPrecisionAccuracy = 1.0f,
+		DefensiveAvoidProjectilesLevel=0.25f,
+		OffensiveDiveLevel= 1f,
+		CounterOutOfRangeMeleeAttacksLevel = 1.0f, 
+		NavigationRandomPausesLevel = 0.0f,
+
+		AggroRange = 0,
+		MeleeWaitTimeLimitMax = 0f,
+		MeleeWaitTimeLimitMin = 0f,
+
+		SearchItemRange = 0,
+		DefensiveBlockLevel=1.0f,
+		MeleeActionsWhenEnraged=new BotMeleeActions(){AttackCombo=70,Grab=20,Wait=0,Block=0,Jump=0,Kick=0,Attack=10},
+		MeleeActions=new BotMeleeActions(){AttackCombo=50,Grab=10,Wait=0,Block=0,Jump=2,Kick=13,Attack=25},
+		MeleeActionsWhenHit=new BotMeleeActions(){AttackCombo=50,Block=25,Grab=0,Attack=25},
+
+		MeleeWeaponUseFullRange = true,
+		ChokePointPlayerCountThreshold = 1,
+		DefensiveRollFireLevel	 =	 1,
+		AttackDeadEnemies = false,
+
+		RangedWeaponHipFireAimShootDelayMax = 0,
+		RangedWeaponHipFireAimShootDelayMin = 0,
+		SeekCoverWhileShooting = 1.0f,
+		TeamLineUp = true,
+		RangedWeaponLOSIgnoreTeammates = false,
+		RocketRideProficiency = 1.0f,
+
+
+		RangedWeaponPrecisionAimShootDelayMax=0,
+		RangedWeaponPrecisionAimShootDelayMin=0,
+		RangedWeaponPrecisionBurstPauseMax=0,
+		RangedWeaponPrecisionBurstPauseMin=0,
+		RangedWeaponPrecisionBurstTimeMax=5000,
+		RangedWeaponPrecisionBurstTimeMin=4000,
+
+		RangedWeaponAimShootDelayMax=0,
+		RangedWeaponAimShootDelayMin=0,
+
+		RangedWeaponBurstPauseMax = 0,
+		RangedWeaponBurstPauseMin = 0,
+		RangedWeaponBurstTimeMax = 100,
+		RangedWeaponBurstTimeMin = 100,
+
+
+		RangedWeaponPrecisionInterpolateTime = 50,
+		};
+
+
+
+		List<SmartBot> SMBOT = new List<SmartBot>();
+		public Random rand = new Random();
+		Events.PlayerWeaponRemovedActionCallback m_playerWeaponRemovedActionEvent = null;
+		List <IPlayer> Smarties = new List <IPlayer>();
+		List <IObject> ThrownObjects = new List <IObject>();	
+		
+
+		public void OnStartup(){
+		m_playerWeaponRemovedActionEvent = Events.PlayerWeaponRemovedActionCallback.Start(OnPlayerWeaponRemovedAction);
+		CreateTimer(1, 0, "Smart", "");
+		}
+
+
+
+ 		public void OnPlayerWeaponRemovedAction(IPlayer player, PlayerWeaponRemovedArg arg) {
+		if (arg.Thrown && arg.TargetObjectID != 0) {
+		IObject item = Game.GetObject(arg.TargetObjectID);
+		item.CustomId = player.Name;
+		if(!ThrownObjects.Contains(item))ThrownObjects.Add(item);
+		}
+ 		}
+
+
+
+		public void Smart(TriggerArgs args){
+		foreach (SmartBot data in SMBOT){	
+		if(data.bot != null && (!data.bot.IsRemoved && data.bot.IsDead || data.bot.IsRemoved)){
+		Game.WriteToConsole("SmartBot deactivated");
+		data.bot = null;
+		}
+		for (int i = ThrownObjects.Count-1;i>=0;i--){
+		IObject miss = ThrownObjects[i];
+		if(data.bot != null && !data.bot.IsRemoved && !data.bot.IsDead && miss != null && !miss.IsRemoved && !miss.DestructionInitiated && miss.CustomId != data.bot.Name && (miss.GetWorldPosition()-data.bot.GetWorldPosition()).Length() <= 32f && miss.IsMissile && data.BotCool < Game.TotalElapsedGameTime && (data.bot.CurrentWeaponDrawn == WeaponItemType.Melee || data.bot.CurrentWeaponDrawn == WeaponItemType.NONE)){
+		if(miss.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(miss.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+
+		data.bot.ClearCommandQueue();		
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Block));			
+		data.BotCool = Game.TotalElapsedGameTime + 200f;	
+		ThrownObjects.Remove(miss);
+		}
+		}
+		//RESET AI//
+		if(data.bot != null && !data.bot.IsRemoved && (data.bot.IsStunned || data.BotCool < Game.TotalElapsedGameTime)){
+		data.bot.ClearCommandQueue();		
+		data.bot.SetBotBehaviorActive(true);
+		}	
+		if(data.target == null && data.bot != null && !data.bot.IsRemoved && rand.Next(2) == 1 && GetClosestPlayer(data.bot, 64) != null && !GetClosestPlayer(data.bot, 64f).IsRemoved && !GetClosestPlayer(data.bot, 64f).IsDead){
+		data.target = GetClosestPlayer(data.bot, 64f);
+		}
+		if(data.target != null && !data.target.IsRemoved && !data.target.IsDead && data.bot != null && !data.bot.IsRemoved && !data.bot.IsDead){
+
+
+		if(data.bot.IsHoldingPlayerInGrab && data.BotCool < Game.TotalElapsedGameTime){
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.AttackOnce, 100));
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.StartMoveToPosition, data.target.GetWorldPosition()));
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Sprint));
+		data.BotCool = Game.TotalElapsedGameTime + 200f;	
+		}
+		if(data.bot.InThrowingMode && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() <= 24f && data.target.GetWorldPosition().Y-data.bot.GetWorldPosition().Y < 24f && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Throw));
+		data.BotCool = Game.TotalElapsedGameTime + 50f;	
+		}
+		if((data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() <= 40f && data.bot.CurrentWeaponDrawn == WeaponItemType.Melee && (data.target.CurrentWeaponDrawn == WeaponItemType.Rifle && data.target.CurrentPrimaryWeapon.CurrentAmmo > 0 && data.target.KeyPressed(VirtualKey.ATTACK) || data.target.CurrentWeaponDrawn == WeaponItemType.Handgun && data.target.CurrentSecondaryWeapon.CurrentAmmo > 0 && data.target.KeyPressed(VirtualKey.ATTACK)) && data.BotCool < Game.TotalElapsedGameTime || (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() <= 32f && (data.target.IsThrowing || data.target.InThrowingMode && data.target.KeyPressed(VirtualKey.ATTACK)) && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Block));
+		data.BotCool = Game.TotalElapsedGameTime + 50f;	
+		}
+		if(rand.Next(5) == 1 && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() < 128f && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() > 32f && data.target.GetWorldPosition().Y-data.bot.GetWorldPosition().Y < 24f && (data.target.IsRunning && data.target.FacingDirection == data.bot.FacingDirection || data.target.IsDrawingWeapon || data.target.IsManualAiming || data.target.IsSprinting && data.target.FacingDirection == data.bot.FacingDirection) && data.bot.CurrentWeaponDrawn == WeaponItemType.Melee && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.EnterThrowingMode, 100));
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Throw));
+		data.BotCool = Game.TotalElapsedGameTime + 150f;	
+		}
+		if((data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() > 32f && data.target.GetWorldPosition().Y-data.bot.GetWorldPosition().Y < 24f && (data.target.IsRunning && data.target.FacingDirection == data.bot.FacingDirection || data.target.IsDrawingWeapon || data.target.IsManualAiming || data.target.IsSprinting && data.target.FacingDirection == data.bot.FacingDirection) && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.StartMoveToPosition, data.target.GetWorldPosition()));
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Dive));
+		data.BotCool = Game.TotalElapsedGameTime + 150f;	
+		}
+		if((data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() <= 18f && (data.target.IsJumpAttacking || data.target.IsMeleeAttacking || data.target.KeyPressed(VirtualKey.ATTACK) || data.target.KeyPressed(VirtualKey.KICK)) && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Block, 50));			
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.AttackOnce));
+		data.BotCool = Game.TotalElapsedGameTime + 100f;	
+		}
+		if((data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() <= 18f && (data.target.IsJumpAttacking || data.target.IsMeleeAttacking || data.target.KeyPressed(VirtualKey.ATTACK) || data.target.KeyPressed(VirtualKey.KICK)) && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();				
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Kick));
+		data.BotCool = Game.TotalElapsedGameTime + 100f;	
+		}
+		if(rand.Next(15) == 1 && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() < 64f && (data.target.IsManualAiming || data.target.IsHipFiring) && data.bot.IsOnGround && data.BotCool < Game.TotalElapsedGameTime || rand.Next(15) == 5 && data.bot.IsOnGround && data.bot.IsBurningInferno && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Roll));			
+		data.BotCool = Game.TotalElapsedGameTime + 100f;	
+		}
+		if(rand.Next(2) == 1 && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() < 24f && data.bot.IsOnGround && !data.bot.IsLayingOnGround && !data.target.IsDiving && !data.target.IsFalling && data.target.IsInMidAir && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Jump, 100));			
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.StartMoveToPosition, data.target.GetWorldPosition()));
+		data.BotCool = Game.TotalElapsedGameTime + 120f;	
+		}
+		if(rand.Next(2) == 1 && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() < 24f && data.bot.IsOnGround && !data.bot.IsLayingOnGround && data.target.IsStunned && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Grab, 100));			
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.StartMoveToPosition, data.target.GetWorldPosition()));
+		data.BotCool = Game.TotalElapsedGameTime + 120f;	
+		}
+		if((data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() < 64f && (data.target.GetWorldPosition()-data.bot.GetWorldPosition()).Length() > 24f && data.target.GetWorldPosition().Y-data.bot.GetWorldPosition().Y < 16f && (data.bot.CurrentWeaponDrawn == WeaponItemType.Rifle || data.bot.CurrentWeaponDrawn == WeaponItemType.Handgun) && data.BotCool < Game.TotalElapsedGameTime){
+		if(data.target.GetWorldPosition().X > data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(1);
+		if(data.target.GetWorldPosition().X < data.bot.GetWorldPosition().X)data.bot.SetFaceDirection(-1);
+		data.bot.SetBotBehaviorActive(false);
+		data.bot.ClearCommandQueue();		
+
+		if(data.bot.CurrentWeaponDrawn == WeaponItemType.Handgun && data.bot.CurrentSecondaryWeapon.CurrentAmmo < data.bot.CurrentSecondaryWeapon.MagSize / 2 || data.bot.CurrentWeaponDrawn == WeaponItemType.Rifle && data.bot.CurrentPrimaryWeapon.CurrentAmmo < data.bot.CurrentPrimaryWeapon.MagSize / 2){
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.EnterThrowingMode, 100));
+		data.bot.AddCommand(new PlayerCommand(PlayerCommandType.Throw));
+		data.BotCool = Game.TotalElapsedGameTime + 125f;	
+		}
+		}	
+		}
+		}
+		foreach(IPlayer botto in Game.GetPlayers()){
+		if(botto.IsBot && !Smarties.Contains(botto) && botto.GetTeam() != PlayerTeam.Team1){
+		Game.WriteToConsole("New SmartBot activated");
+		botto.SetBotBehaviorSet(SmartAI);
+		botto.SetBotBehaviorActive(true);
+		botto.SetBotName("Smart " + botto.Name);
+		Smarties.Add(botto);
+		SMBOT.Add(new SmartBot(botto));
+		//botto.SetNametagVisible(true);
+		}
+		}
+		}
+
+
+		public void CreateTimer(int interval, int count, string method, string id) {
+			IObjectTimerTrigger timerTrigger = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger"); 
+			timerTrigger.SetIntervalTime(interval);
+			timerTrigger.SetRepeatCount(count);
+			timerTrigger.SetScriptMethod(method);
+			timerTrigger.CustomId = id;
+			timerTrigger.Trigger();
+		}
+
+
+		static IPlayer GetClosestPlayer(IPlayer Center, float MaxDistance)
+		{
+    IPlayer target = null;
+    float md = MaxDistance;
+    foreach (IPlayer p in Game.GetPlayers())
+    {
+        if (p != null && !p.IsRemoved && p != Center && (p.GetTeam() != Center.GetTeam() || p.GetTeam() == PlayerTeam.Independent))
+        {
+            if (Vector2.Distance(p.GetWorldPosition(), Center.GetWorldPosition()) < md)
+            {
+                md = Vector2.Distance(p.GetWorldPosition(), Center.GetWorldPosition());
+                target = p;
+      		      }
+    		    }
+  		  }
+    		return target;
+		}
+
+
+		public class SmartBot
+		{
+			public IPlayer bot = null;
+			public IPlayer target = null;
+			public float BotCool = 0f;
+
+  		  public SmartBot(IPlayer target)
+  		  {
+				this.bot = target;
+  		  }
+		}	
+		
+		
+		public void OnShutdown(){
+		foreach(IObject obj in Game.GetObjectsByName("TimerTrigger"))obj.Remove();
+		Smarties = new List <IPlayer>();
+		ThrownObjects = new List <IObject>();	
+		}
+		
+
+		

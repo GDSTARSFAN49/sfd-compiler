@@ -1,0 +1,73 @@
+IList<boomerang> bangs = new List<boomerang>();
+
+public void OnStartup(){
+
+    IObjectTimerTrigger step = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+    step.SetScriptMethod("timeStep");
+    step.SetRepeatCount(0);
+    step.SetIntervalTime(0);
+    step.Trigger();
+
+}
+
+public void timeStep(TriggerArgs args){
+
+	foreach(IPlayer ply in Game.GetPlayers()){
+		if(ply.IsThrowing){
+			Area hitbox = ply.GetAABB();
+			hitbox.Grow(8,16);
+			Vector2 pos = ply.GetWorldPosition();
+			foreach(IObject obj in Game.GetObjects(hitbox)){		
+				Vector2 box = obj.GetWorldPosition();
+				if(box.X - 32 <= pos.X && box.X + 32 >= pos.X && box.Y - 32 <= pos.Y && box.Y + 32 >= pos.Y && !(obj is IPlayer)){
+					int check = 0;
+					foreach(boomerang ba in bangs){
+						if(ba.obj == obj){				
+							check = 1;
+						}
+					}
+					if(check == 0 && obj.Name != "WpnMineThrown" && obj.Name != "WpnC4Thrown" && obj.Name != "WpnMolotovsThrown" && obj.Name != "WpnGrenadesThrown" && obj.IsMissile){
+						bangs.Add(new boomerang(obj));
+					}
+				}
+			}	
+		}
+	}
+
+	foreach(boomerang obj in bangs){
+		obj.checker();
+	}
+
+}
+
+public class boomerang{
+	public IObject obj;
+	Vector2 phys;
+	int returnTime = 30;
+	float angle;	
+
+	public boomerang(IObject input_item){
+		obj = input_item;
+		phys = obj.GetLinearVelocity();
+		angle = obj.GetAngle();
+	}	
+
+	public void checker(){
+		if(obj != null){
+
+			if(returnTime > -30 && obj.IsMissile){
+				returnTime --;
+				if(obj.IsMissile){
+					obj.SetLinearVelocity(new Vector2(phys.X * 2 * returnTime/30,phys.Y * 2 * returnTime/30));
+				}
+			}else{
+				if(!obj.IsMissile){
+					obj.SetLinearVelocity(phys/2);
+				}
+				obj = null;
+			}
+
+		}
+
+	}
+}

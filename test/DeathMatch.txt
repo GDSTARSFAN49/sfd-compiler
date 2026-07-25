@@ -1,0 +1,1514 @@
+/*	
+	Script: DeathMatch
+	Author: Ebomb09, (Ethan)
+*/
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	System
+
+*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+public static IList<gPlayer> Players = new List<gPlayer>();
+public static List<Gib> Giblets = new List<Gib>();
+public static Random rnd = new Random();
+public static bool GameOverOnce = false;
+public static bool UpperCam = false;
+public static int[] TeamSizes = new int[5];
+public static int[] MaxTeamSizes = new int[5];
+
+Events.UserMessageCallback m_userMessageCallback = null;
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	Game
+
+*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+public static int DM_RESPAWNTIMER;
+public static int DM_FRAGLIMIT;
+public static int DM_KILLSTREAKS;
+public static int DM_CLEANGIBS;
+public static int[] DM_STARTITEMS;
+public static int DM_INSTAGIB;
+public static int DM_GUNGAME;
+
+public static WeaponItem[] GUNGAME_ITEMS = new WeaponItem[]{
+	WeaponItem.ASSAULT,
+	WeaponItem.SMG,
+	WeaponItem.SNIPER,
+	WeaponItem.CARBINE,
+	WeaponItem.SHOTGUN,
+	WeaponItem.SAWED_OFF,
+	WeaponItem.MAGNUM,
+	WeaponItem.REVOLVER,
+	WeaponItem.MACHINE_PISTOL,
+	WeaponItem.UZI,
+	WeaponItem.PISTOL,
+	WeaponItem.SILENCEDPISTOL,
+	WeaponItem.KATANA,
+	WeaponItem.KNIFE
+};
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	Colours
+
+*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+public static Color cModCommands = new Color(245,174,26);
+public static Color cPlayerCommands = new Color(246,246,13);
+public static Color cModifierCommands = new Color(153,245,64);
+public static Color cMessage = new Color(244,54,0);
+public static Color cPassed = new Color(33,133,33);
+public static Color cFailed = new Color(255,0,0);
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	User Commands
+
+*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+public void OnUserMessage(UserMessageCallbackArgs args){
+	if(args.IsCommand){
+		
+		if(args.Command == "DM_HELP"){
+		
+			//User Commands
+			Game.ShowChatMessage("'/CHANGETEAM [x]' - Join Team If Space",cPlayerCommands,args.User.UserIdentifier);
+			
+			if(args.User.IsHost || args.User.IsModerator){
+			
+				//Modifier Commands
+				Game.ShowChatMessage("'/DM_STARTITEMS' - Set Start Items",cModifierCommands,args.User.UserIdentifier);
+				Game.ShowChatMessage("'/DM_INSTAGIB [0,1]' - Set Instagib",cModifierCommands,args.User.UserIdentifier);
+				
+				//GameType Commands
+				Game.ShowChatMessage("'/DM_FRAGLIMIT [x]' - Set Frags To Win",cModCommands,args.User.UserIdentifier);
+				Game.ShowChatMessage("'/DM_RESPAWNTIME [x]' - Set Respawn Time",cModCommands,args.User.UserIdentifier);
+				Game.ShowChatMessage("'/DM_KILLSTREAKS [0,1]' - Set Killstreak Messages",cModCommands,args.User.UserIdentifier);
+				Game.ShowChatMessage("'/DM_CLEANGIBS [0,1]' - Set Clear Gibs",cModCommands,args.User.UserIdentifier);
+				Game.ShowChatMessage("'/DM_SETTEAMS 00000000' - Set Teams",cModCommands,args.User.UserIdentifier);
+				Game.ShowChatMessage("'/DM_GUNGAME [0,1]' - Set GunGame",cModCommands,args.User.UserIdentifier);
+			}
+			
+		}
+
+		if(args.Command == "CHANGETEAM"){
+			int x = -1;
+			//Alternate Find Teams
+			if(args.CommandArguments.ToUpper() == "INDEPENDENT"){
+				x = 0;
+			}else if(args.CommandArguments.ToUpper() == "BLUE"){
+				x = 1;
+			}else if(args.CommandArguments.ToUpper()  == "RED"){
+				x = 2;
+			}else if(args.CommandArguments.ToUpper()  == "GREEN"){
+				x = 3;
+			}else if(args.CommandArguments.ToUpper()  == "YELLOW"){
+				x = 4;
+			}
+			
+			if(x != -1 || Int32.TryParse(args.CommandArguments, out x)){
+				
+				if(x >= 0 && x <= 4){
+					foreach(gPlayer o in Players){
+						if(o.User == args.User){
+						
+							if(MaxTeamSizes[x] != 0 && TeamSizes[x] != MaxTeamSizes[x]){
+								
+								double myTeam = (double)TeamSizes[(int)o.Team] / MaxTeamSizes[(int)o.Team];
+								double compTeam = (double)TeamSizes[x] / MaxTeamSizes[x];
+								
+								if(compTeam < myTeam){
+									
+									string teamName = "Independent";
+									Color Col = new Color(255,255,255);
+									switch(x){
+										case 1:
+											Col = new Color(123,123,245);
+											teamName = "Blue";
+										break;
+										case 2:
+											Col = new Color(244,77,77);
+											teamName = "Red";
+										break;
+										case 3:
+											Col = new Color(0,214,0);
+											teamName = "Green";
+										break;
+										case 4:
+											Col = new Color(224,224,0);
+											teamName = "Yellow";
+										break;
+									}										
+									
+									TeamSizes[(int)o.Team] --;
+									TeamSizes[x] ++;
+									
+									Game.ShowChatMessage(args.User.Name + " Joined Team " + teamName,Col);
+									o.Team = (PlayerTeam)x;
+									if(o.Player != null && !o.Player.IsRemoved && !o.Player.IsDead){
+										o.Player.Remove();
+										o.Spawn();
+									}					
+									
+								}else{
+									Game.ShowChatMessage("Unable To Join Team",cFailed,args.User.UserIdentifier);
+								}	
+								
+							}else{
+								Game.ShowChatMessage("Unable To Join Team",cFailed,args.User.UserIdentifier);
+							}	
+							
+						}
+					}						
+				}else{
+					Game.ShowChatMessage("Invalid Team : Must Be Integer 0 to 4",cFailed,args.User.UserIdentifier);
+				}
+			
+			}else{
+				Game.ShowChatMessage("Invalid Team : Must Be Integer 0 to 4",cFailed,args.User.UserIdentifier);
+			}		
+		}
+		
+		if(args.User.IsHost || args.User.IsModerator){
+		
+			if(args.Command == "DM_FRAGLIMIT"){
+				int x = 0;
+				if(Int32.TryParse(args.CommandArguments, out x)){
+					if(x > 0){
+						Game.ShowChatMessage("Frag Limit Set To " + x,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("FRAGLIMIT",x);
+					}else{
+						Game.ShowChatMessage("Invalid Arguments : Must Be A Positive Integer",cPlayerCommands,args.User.UserIdentifier);
+					}
+				}else if(Game.LocalStorage.TryGetItemInt("FRAGLIMIT", out x)){
+					Game.ShowChatMessage("Frag Limt Is Set At " + x,cPassed,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Be A Positive Integer",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+
+			if(args.Command == "DM_RESPAWNTIME"){
+				int x = 0;
+				if(Int32.TryParse(args.CommandArguments, out x)){
+					if(x > 0){
+						Game.ShowChatMessage("Respawn Time Set To " + x,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("RESPAWNTIME",x);
+					}else{
+						Game.ShowChatMessage("Invalid Arguments : Must Be A Positive Integer",cPlayerCommands,args.User.UserIdentifier);
+					}
+				}else if(Game.LocalStorage.TryGetItemInt("RESPAWNTIME", out x)){
+					Game.ShowChatMessage("Respawn Time Is Set At " + x,cPassed,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Be A Positive Integer",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+
+			if(args.Command == "DM_KILLSTREAKS"){
+				int x = 0;
+				if(Int32.TryParse(args.CommandArguments, out x)){
+					if(x == 0 || x == 1){
+						string t_msg = (x == 1) ? "Enabled" : "Disable";
+						Game.ShowChatMessage("Killstreaks Set To " + t_msg,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("KILLSTREAKS",x);
+					}else{
+						Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+					}
+				}else if(Game.LocalStorage.TryGetItemInt("KILLSTREAKS", out x)){
+					string t_msg = (x == 1) ? "Enabled" : "Disable";
+					Game.ShowChatMessage("Killstreaks Are " + t_msg,cPassed,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+			
+			if(args.Command == "DM_CLEANGIBS"){
+				int x = 0;
+				if(Int32.TryParse(args.CommandArguments, out x)){
+					if(x == 0 || x == 1){
+						string t_msg = (x == 1) ? "Enabled" : "Disable";
+						Game.ShowChatMessage("Cleanup Gibs Set To " + t_msg,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("CLEANGIBS",x);
+					}else{
+						Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+					}
+				}else if(Game.LocalStorage.TryGetItemInt("CLEANGIBS", out x)){
+					string t_msg = (x == 1) ? "Enabled" : "Disable";
+					Game.ShowChatMessage("Cleanup Gibs Are " + t_msg,cPassed,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+
+			if(args.Command == "DM_GUNGAME"){
+				int x = 0;
+				if(Int32.TryParse(args.CommandArguments, out x)){
+					if(x == 0 || x == 1){
+						string t_msg = (x == 1) ? "Enabled" : "Disable";
+						Game.ShowChatMessage("GunGame Set To " + t_msg,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("GUNGAME",x);
+					}else{
+						Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+					}
+				}else if(Game.LocalStorage.TryGetItemInt("GUNGAME", out x)){
+					string t_msg = (x == 1) ? "Enabled" : "Disable";
+					Game.ShowChatMessage("GunGame Is " + t_msg,cPassed,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+			
+			if(args.Command == "DM_SETTEAMS"){
+				string arg = args.CommandArguments;
+				if(arg.Length == 8){
+					bool check = false;
+					for(int i = 0;i < arg.Length;i ++){
+						if(arg[i] != '0' && arg[i] != '1' && arg[i] != '2' && arg[i] != '3' && arg[i] != '4'){
+							check = true;
+						}
+					}
+					if(check){
+						Game.ShowChatMessage("Invalid Arguments : Teams Must Be Between 0 and 4",cPlayerCommands,args.User.UserIdentifier);
+					}else{
+						Game.ShowChatMessage("Teams Set To " + arg,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("TEAMS",arg);
+					}
+					
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Configure All Player Teams",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+
+			if(args.Command == "DM_INSTAGIB"){
+				int x = 0;
+				if(Int32.TryParse(args.CommandArguments, out x)){
+					if(x == 0 || x == 1){
+						string t_msg = (x == 1) ? "Enabled" : "Disable";
+						Game.ShowChatMessage("Instagib Set To " + t_msg,cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("INSTAGIB",x);
+					}else{
+						Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+					}
+				}else if(Game.LocalStorage.TryGetItemInt("INSTAGIB", out x)){
+					string t_msg = (x == 1) ? "Enabled" : "Disable";
+					Game.ShowChatMessage("Instagib Is " + t_msg,cPassed,args.User.UserIdentifier);
+				}else{
+					Game.ShowChatMessage("Invalid Arguments : Must Be Integer 0 Or 1",cPlayerCommands,args.User.UserIdentifier);
+				}
+			}
+			
+			if(args.Command == "DM_STARTITEMS"){
+			
+				if(args.CommandArguments != ""){
+					string[] arg = args.CommandArguments.Split(' ');
+					int[] items = new int[arg.Length];
+					
+					bool check = true;
+					for(int i = 0;i < arg.Length;i ++){
+						string t_str = arg[i];
+						
+						if(!Int32.TryParse(t_str, out items[i])){
+							check = false;
+						}
+					}
+					if(check){
+						Game.ShowChatMessage("Start Items Set To '" + args.CommandArguments + "'",cPassed,args.User.UserIdentifier);
+						Game.LocalStorage.SetItem("STARTITEMS",items);
+					}else{
+						Game.ShowChatMessage("Failed To Use Arguments : Check Item IDs",cFailed,args.User.UserIdentifier);			
+					}
+				
+				}else{
+					Game.ShowChatMessage("Start Items Disabled",cPassed,args.User.UserIdentifier);
+					Game.LocalStorage.SetItem("STARTITEMS",new int[]{-1});			
+				}
+			}
+		
+		}
+		
+	}
+}
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	Main
+
+*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+public void OnStartup(){
+
+		//Set Game Settings To Config
+	m_userMessageCallback = Events.UserMessageCallback.Start(OnUserMessage);
+
+	if(!Game.LocalStorage.TryGetItemInt("FRAGLIMIT", out DM_FRAGLIMIT)){
+		DM_FRAGLIMIT = 10;
+	}
+
+	if(!Game.LocalStorage.TryGetItemInt("RESPAWNTIME", out DM_RESPAWNTIMER)){
+		DM_RESPAWNTIMER = 300;
+	}
+
+	if(!Game.LocalStorage.TryGetItemInt("KILLSTREAKS", out DM_KILLSTREAKS)){
+		DM_KILLSTREAKS = 1;
+	}
+	
+	if(!Game.LocalStorage.TryGetItemInt("CLEANGIBS", out DM_CLEANGIBS)){
+		DM_CLEANGIBS = 1;
+	}	
+	
+	if(!Game.LocalStorage.TryGetItemInt("INSTAGIB", out DM_INSTAGIB)){
+		DM_INSTAGIB = 0;
+	}	
+
+	string t_teams = "";
+	if(!Game.LocalStorage.TryGetItemString("TEAMS", out t_teams)){
+		MaxTeamSizes[0] = 8;
+	}else{
+		foreach(char o in t_teams){
+			MaxTeamSizes[Int32.Parse(o.ToString())] ++;
+		}
+	}
+
+	if(!Game.LocalStorage.TryGetItemIntArr("STARTITEMS", out DM_STARTITEMS)){
+		DM_STARTITEMS = new int[]{-1};
+	}
+
+	if(!Game.LocalStorage.TryGetItemInt("GUNGAME", out DM_GUNGAME)){
+		DM_CLEANGIBS = 0;
+	}else if(DM_GUNGAME == 1){
+		Game.AutoSpawnSupplyCratesEnabled = false;
+		DM_STARTITEMS = new int[]{-1};
+		DM_FRAGLIMIT = GUNGAME_ITEMS.Length;
+		
+		//Free For All
+		for(int i = 0;i < MaxTeamSizes.Length;i ++){
+			MaxTeamSizes[i] = 0;
+		}
+		MaxTeamSizes[0] = 8;
+	}
+	
+	Game.AutoVictoryConditionEnabled = false;
+	Game.AutoScoreConditionEnabled = false;
+	Game.DeathSequenceEnabled = false;
+
+	//randomize
+	int[] rUsers = GetArrangedArray(Game.GetActiveUsers().Length,Game.GetActiveUsers().Length);
+	for(int i = 0;i < rUsers.Length;i ++){
+		Players.Add(new gPlayer(Game.GetActiveUsers()[rUsers[i]]));
+	}
+	
+
+	//Player Spawns Linked to lifts/elevators
+	foreach(IObject obj in Game.GetObjectsByName("SpawnPlayer")){
+		bool check = false;
+		List<IObject> welds = new List<IObject>();
+		foreach(IObject cObj in Game.GetObjectsByArea(obj.GetAABB())){
+			if(cObj.Name.Contains("Lift") || cObj.Name.Contains("Elevator")){
+				check = true;
+				welds.Add(cObj);
+			}
+		}
+		if(check){
+			IObjectWeldJoint welder = (IObjectWeldJoint)Game.CreateObject("WeldJoint");
+			obj.SetBodyType(BodyType.Dynamic);
+
+			welder.AddTargetObject(obj);
+			foreach(IObject aObj in welds){
+				aObj.SetBodyType(BodyType.Dynamic);
+				welder.AddTargetObject(aObj);
+			}
+		}
+	}
+	
+	IObjectTimerTrigger stepper = (IObjectTimerTrigger)Game.CreateObject("TimerTrigger");
+	stepper.SetIntervalTime(0);	
+	stepper.SetRepeatCount(0);
+	stepper.SetScriptMethod("GameTick");
+	stepper.Trigger();
+}
+
+public void GameTick(TriggerArgs args){
+
+	foreach(gPlayer o in Players){
+		o.Step();
+	}
+	
+		//Clearnup Bodies / Gibs
+	if(DM_CLEANGIBS == 1){
+		foreach(IObject obj in Game.GetObjectsByName(new string[]{"Giblet00","Giblet01","Giblet02","Giblet03","Giblet04"})){
+			if(obj.CustomID != "REMOVEPROCESS"){
+				obj.CustomID = "REMOVEPROCESS";
+				Giblets.Add(new Gib(obj));
+			}
+		}
+		foreach(IPlayer obj in Game.GetPlayers()){
+			if(obj.IsDead && obj.CustomID != "REMOVEPROCESS"){
+				obj.CustomID = "REMOVEPROCESS";
+				Giblets.Add(new Gib(obj));
+			}
+		}
+		foreach(Gib o in Giblets){
+			o.TimeFall();
+		}
+	}
+	
+		//Find New Players
+	foreach(IUser usr in Game.GetActiveUsers()){
+		bool Check = false;
+		foreach(gPlayer o in Players){
+		
+			if(o.User == usr){
+				Check = true;
+			}
+			
+		}
+		
+		if(!Check){
+			Players.Add(new gPlayer(usr));
+		}
+		
+	}
+		
+		//Find Winner
+	if(!GameOverOnce){
+		IUser Winner = null;
+		int[] Teams = new int[4];
+		foreach(gPlayer o in Players){
+			if(o.User != null && o.User.GetTeam() == PlayerTeam.Independent && o.Kills >= DM_FRAGLIMIT){
+				Winner = o.User;
+			}
+			//Addup Team Scores
+			if(o.User != null && o.User.GetTeam() != PlayerTeam.Independent){
+				Teams[(int)o.User.GetTeam() - 1] += o.Kills;
+			}
+		}
+		if(Game.IsGameOver){
+			int Highest = 0;
+			foreach(gPlayer o in Players){
+				if(o.User != null && o.Kills > Highest){
+					Winner = o.User;
+					Highest = o.Kills;
+				}
+			}
+		}
+		if(Winner != null){
+			Winner.IncreaseScore();
+			Game.SetGameOver(Winner.Name + " Won!");
+			GameOverOnce = true;
+		}
+		//Check Team Scores
+		for(int i = 0;i < Teams.Length;i ++){
+			if(Teams[i] >= DM_FRAGLIMIT){
+				Game.SetGameOver("Team " + (i + 1) + " Won!");
+				GameOverOnce = true;
+				foreach(IUser usr in Game.GetActiveUsers()){
+					if((int)usr.GetTeam() - 1 == i){
+						usr.IncreaseScore();
+					}
+				}
+				break;				
+			}
+		}
+	}
+	
+	if(!GameOverOnce){
+		ShowScores();
+	}else{
+		Game.ShowPopupMessage("");
+	}
+	
+		//End Game Stats
+	if(GameOverOnce && !UpperCam){
+		foreach(gPlayer o in Players){
+			if(o.Player != null){
+				o.Player.Remove();
+			}
+		}
+		ShowStats();
+		UpperCam = true;
+	}
+}
+
+/*////////////////////
+
+	Score System
+
+*/////////////////////
+
+public void ShowScores(){
+	List<List<gPlayer>> t_Players = new List<List<gPlayer>>();
+	
+	List<string> Names = new List<string>();
+	List<int> Scores = new List<int>();
+	
+	//List Player Groups
+	for(int i = 0;i < Players.Count;i ++){
+		gPlayer o = Players[i];
+		
+		if(o.User != null){
+			if(o.User.GetTeam() == PlayerTeam.Independent){
+				t_Players.Add(new List<gPlayer>{o});
+			}else{
+				bool check = false;
+				foreach(List<gPlayer> temp in t_Players){
+					bool success = false;
+					for(int z = 0;z < temp.Count;z ++){
+						if(temp[z].User.GetTeam() == o.User.GetTeam()){
+							success = true;
+							temp.Add(o);
+							break;
+						}
+					}
+					if(success){
+						check = true;
+						break;
+					}
+				}
+				if(!check){
+					t_Players.Add(new List<gPlayer>{o});
+				}
+			}
+			
+		}
+	}
+	
+	//Order By Scores
+	for(int i = 0;i < t_Players.Count;i ++){
+		List<gPlayer> gr = t_Players[i];
+		
+		int Score = 0;
+		string Name = "";
+		foreach(gPlayer o in gr){
+			Score += o.Kills;
+		}
+		if(gr.Count > 1){
+			Name = "Team " + (int)gr[0].User.GetTeam();
+		}else{
+			Name = gr[0].Name;
+		}
+		
+		bool check = false;
+		for(int z = 0;z < Scores.Count; z ++){
+			if(Score >= Scores[z]){
+				check = true;
+				Names.Insert(z,Name);
+				Scores.Insert(z,Score);
+				break;
+			}
+		}
+		if(!check){
+			Names.Add(Name);
+			Scores.Add(Score);		
+		}
+	}
+	
+	string Tab = "";
+	for(int i = 0;i < Scores.Count; i ++){
+		string scr = (DM_GUNGAME == 0) ? "" +  Scores[i] : ("" + GetGunGameItem(Scores[i])).Replace('_',' ');
+		Tab += Names[i]+ ": " + scr + "\n";
+	}
+	Game.ShowPopupMessage(Tab);
+}
+
+public void ShowStats(){
+	foreach(IObject obj in Game.GetObjectsByName("CameraAreaTrigger")){
+		obj.Remove();
+	}
+
+	Vector2 Pos = new Vector2(0,1000);
+
+	//Create Backing
+	IObject backg = Game.CreateObject("FarBgShadow00A",Pos + new Vector2(-256, 256));
+	backg.SetSizeFactor(new Point(64,64));
+
+	for(int i = 0;i < 24;i ++){
+		IObject temp = Game.CreateObject("FarBgSkylineCity0" + rnd.Next(0,3) + "B",Pos + new Vector2(-64 + 8 * i,-96 + rnd.Next(0,64)));
+		temp.SetSizeFactor(new Point(1,24));
+		temp.SetColor1("BgDarkBrown");
+	}
+
+	for(int i = 0;i < 2;i ++){
+		Game.CreateObject("FarBgSearchlight00",Pos + new Vector2(-32 + 64 * i,-128));
+	}
+
+	IObjectCameraAreaTrigger Cam = (IObjectCameraAreaTrigger)Game.CreateObject("CameraAreaTrigger",Pos);
+
+	//End Game Stats
+	string[] Categories = {"Name","Kills","Deaths","K/D"};
+	for(int i = 0;i < Categories.Length;i ++){
+		CreateText(Categories[i],new Vector2(Pos.X + i * 16,Pos.Y - 8), new Color(255,255,255));
+	}
+
+	//List By Most Kills
+	List<gPlayer> pScores = new List<gPlayer>();
+	for(int i = 0;i < Players.Count;i ++){
+		gPlayer temp = Players[i];
+		
+		if(temp.User != null){
+			bool success = false;
+			if(pScores.Count != 0){
+				for(int v = 0;v < pScores.Count;v ++){
+					if(temp.Kills >= pScores[v].Kills){
+						success = true;
+						pScores.Insert(v,temp);
+						break;
+					}
+				}
+			}
+			if(!success){
+				pScores.Add(temp);
+			}
+		}
+	}
+
+	//Draw To Board
+	float z = 2.5f;
+	foreach(gPlayer o in pScores){
+		if(o.User != null){
+			
+			double KD = o.Kills;
+			if(o.Deaths != 0){
+				KD = Math.Round(KD / o.Deaths * 100) / 100;
+			}
+			
+			Color Col = new Color(255,255,255);
+			switch((int)o.User.GetTeam()){
+				case 1:
+					Col = new Color(123,123,245);
+				break;
+				case 2:
+					Col = new Color(244,77,77);
+				break;
+				case 3:
+					Col = new Color(0,214,0);
+				break;
+				case 4:
+					Col = new Color(224,224,0);
+				break;
+			}
+			
+			CreateText(Shorten(o.Name), Pos + new Vector2(0,-6 * z),Col);
+			CreateText("" + o.Kills, Pos + new Vector2(16,-6 * z),Col);
+			CreateText("" + o.Deaths, Pos + new Vector2(32,-6 * z),Col);
+			CreateText("" + KD, Pos + new Vector2(48,-6 * z),Col);
+			
+			z ++;
+		}
+	}
+	
+	Game.SetCameraArea(Cam.GetAABB());
+}
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	Classes
+
+*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+public class Line{
+	public Vector2 Point;
+	public Vector2 Point2;
+
+	public Line(Vector2 a, Vector2 b){
+		Point = a;
+		Point2 = b;
+	}
+}
+
+public class Gib{
+	IObject obj = null;
+	int Timer = 200;
+	
+	public Gib(IObject o){
+		obj = o;
+	}
+	public void TimeFall(){
+		Timer --;
+		if(Timer <= 0){
+			ClearGib();
+		}
+	}
+	public void ClearGib(){
+		if(obj != null){
+			if(obj is IPlayer){
+				obj.Remove();
+			}else{
+				obj.Destroy();
+			}
+			obj = null;
+		}
+	}
+}
+
+public class gPlayer{
+
+		//Get all player info from user
+	public IUser User;	
+	public IPlayer Player;
+	
+		//Stats
+	public int CurrentKills = 0;
+	public int HighestKills = 0;
+	public int Kills = 0;
+	public int Deaths = 0;
+	public int RespawnTimer = 0;
+	
+		//Info
+	public string Name;
+	public PlayerTeam Team;
+
+		//Trackers, find actions of players based on recent events
+		//L = Last, S = Saved
+	
+	gPlayer LAttacker = null;
+	gPlayer LexpAttacker = null;
+	gPlayer LfireAttacker = null;	
+
+		//Melee
+	float MeleeDamage = 0;
+	float ExplosionDamage = 0;
+	float FireDamage = 0;
+	
+	int Lshot = 0;
+	int Sshot = 0;
+	int Lshotdir = 0;
+
+	int Shit = 0;
+
+	int Sthr = 0;
+	int Lthr = 0;
+
+	int Lthrhit = 0;
+	int Lthrdir = 0;
+	
+	int Lexp = 0;
+	
+	int Lfir = 0;
+	
+	IPlayer HoldTarget = null;
+
+	Vector2 pos;
+	Vector2 phys;
+	int FaceDirection = 0;
+	public bool IsDead = false;
+	bool ReadyForDeath = false;
+
+	public gPlayer(IUser usr){
+		User = usr;
+		Name = usr.Name;
+		
+		//Show Match Settings
+		if(DM_GUNGAME == 0){
+			Game.ShowChatMessage("|==== Welcome To DeathMatch ====|",cMessage,User.UserIdentifier);
+		}else{
+			Game.ShowChatMessage("|====  Welcome To GunGame  ====|",cMessage,User.UserIdentifier);
+		}
+		if(DM_GUNGAME == 0){
+			Game.ShowChatMessage("| Frag Limit: " + DM_FRAGLIMIT,cMessage,User.UserIdentifier);
+		}else{
+			Game.ShowChatMessage("| Gun Tiers: " + DM_FRAGLIMIT,cMessage,User.UserIdentifier);
+		}
+		Game.ShowChatMessage("| Respawn Time: " + DM_RESPAWNTIMER,cMessage,User.UserIdentifier);
+		if(DM_GUNGAME == 1){
+			Game.ShowChatMessage("| Kill With The Knife To Win",cMessage,User.UserIdentifier);
+		}
+		if(DM_INSTAGIB == 1){
+			Game.ShowChatMessage("| Instagib: Enabled",cMessage,User.UserIdentifier);
+		}	
+		
+		GetTeam();
+		
+		if(usr.GetPlayer() != null){
+			Player = usr.GetPlayer();
+			Player.SetTeam(Team);
+			Reset();
+		}else{
+			Spawn();
+		}
+	}
+	public void GetTeam(){
+		List<int> Teams = new List<int>();
+		for(int i = 0;i < TeamSizes.Length;i ++){
+			if(TeamSizes[i] != MaxTeamSizes[i]){
+				for(int z = 0;z < (MaxTeamSizes[i] - TeamSizes[i]);z ++){
+					Teams.Add(i);
+				}
+			}
+		}
+		
+		bool evenTeams = true;
+		double t_check = (double)TeamSizes[Teams[0]] / MaxTeamSizes[Teams[0]];
+		for(int i = 0;i < Teams.Count;i ++){
+			if((double)TeamSizes[Teams[i]] / MaxTeamSizes[Teams[i]] != t_check){
+				evenTeams = false;
+			}
+		}
+		
+		if(evenTeams){
+			int rPick = rnd.Next(0,Teams.Count);
+			Team = (PlayerTeam)Teams[rPick];
+			TeamSizes[Teams[rPick]] ++;
+		}else{
+			double cPick = 8;
+			foreach(int o in Teams){
+				if((double)TeamSizes[o] / MaxTeamSizes[o] < cPick){
+					cPick = (double)TeamSizes[o]  / MaxTeamSizes[o];
+				}
+			}
+			List<int> selectTeams = new List<int>();
+			foreach(int o in Teams){
+				if((double)TeamSizes[o] / MaxTeamSizes[o] == cPick){
+					selectTeams.Add(o);
+				}
+			}
+			int rPick = selectTeams[rnd.Next(0,selectTeams.Count)];
+			Team = (PlayerTeam)rPick;
+			TeamSizes[rPick] ++;
+		}
+
+	}
+	public void Spawn(){
+		IObject Loc = GetPrioritySpawn();
+	
+		Player = Game.CreatePlayer(Loc.GetWorldPosition());
+		User.SetPlayer(Player);
+		Player.SetFaceDirection(Loc.GetFaceDirection());
+		Player.SetProfile(User.GetProfile());
+		Player.SetTeam(Team);
+		Reset();
+
+		if(Player.IsBot){
+			Player.SetBotBehavior(new BotBehavior(true,User.BotPredefinedAIType));
+		}
+	}
+	public void Reset(){
+		//Give Startup Items
+		foreach(int o in DM_STARTITEMS){
+			if(o != -1){
+				if(Player != null && !Player.IsRemoved && !Player.IsDead){
+					Player.GiveWeaponItem((WeaponItem)o);
+				}
+			}
+		}
+	
+		if(DM_GUNGAME == 1){
+			Player.GiveWeaponItem(GetGunGameItem(Kills));
+			
+			PlayerModifiers mods = Player.GetModifiers();
+			mods.ItemDropMode = 2;
+			mods.InfiniteAmmo = 1;
+			Player.SetModifiers(mods);
+		}
+	
+		LAttacker = null;
+		LexpAttacker = null;
+		LfireAttacker = null;
+		
+		MeleeDamage = 0;
+		ExplosionDamage = 0;
+		FireDamage = 0;
+		
+		Lshot = 0;
+		Sshot = 0;
+		Lshotdir = 0;
+
+		Shit = 0;
+
+		Sthr = 0;
+		Lthr = 0;
+
+		Lthrhit = 0;
+		Lthrdir = 0;
+		
+		Lexp = 0;
+		
+		Lfir = 0;
+		
+		IsDead = false;
+		ReadyForDeath = false;
+	}
+	public void Step(){
+		checkNULL();
+		
+		if(User != null){
+		
+			if(!Game.IsGameOver){
+				if(IsDead){
+					if(RespawnTimer > 0){
+						RespawnTimer --;
+					}else{
+						Spawn();
+					}
+				}
+			}else{
+				IsDead = true;
+				ReadyForDeath= true;
+			}
+			
+			if(!Game.IsGameOver && DM_GUNGAME == 1 && Player != null && !Player.IsRemoved && !Player.IsDead){
+				WeaponItem test = GetGunGameItem(Kills);
+				
+				if(test != Player.CurrentMeleeWeapon.WeaponItem && test != Player.CurrentPrimaryWeapon.WeaponItem && test != Player.CurrentSecondaryWeapon.WeaponItem){
+					Player.RemoveWeaponItemType(WeaponItemType.Handgun);
+					Player.RemoveWeaponItemType(WeaponItemType.Rifle);
+					Player.RemoveWeaponItemType(WeaponItemType.Melee);
+					Player.GiveWeaponItem(test);				
+				}
+				
+				if(Player.IsThrowing){
+					Area box = new Area( pos.Y + 16, pos.X - 16, pos.Y - 16, pos.X + 16);
+
+					foreach(IObject obj in Game.GetObjectsByArea(box)){
+						if(obj is IObjectWeaponItem && obj.IsMissile){
+							obj.Remove();
+						}
+					}
+				}
+			}
+
+			if(Player.IsRemoved){
+				ReadyForDeath = true;
+			}
+
+			if(IsDead){
+				if(Lshot > 0){
+					Lshot --;
+				}
+				if(Lthr > 0){
+					Lthr --;
+				}
+			}
+
+			if(!IsDead && !ReadyForDeath){
+				IPlayerStatistics stats = Player.Statistics;
+				pos = Player.GetWorldPosition();
+				phys = Player.GetLinearVelocity();
+				Area throwBox = new Area(pos.Y + 16, pos.X - 16, pos.Y - 16, pos.X + 16);
+				Area expBox = new Area(pos.Y + 4, pos.X - 4, pos.Y - 4, pos.X + 4);
+				FaceDirection = Player.FacingDirection;
+
+				//Instagib
+				if(DM_INSTAGIB == 1){		
+					if(stats.TotalProjectilesHitBy != 0){
+						Player.Kill();
+					}
+				}
+
+				//Check GunShots
+				
+				if(stats.TotalShotsFired != Sshot){
+					Sshot = stats.TotalShotsFired;
+					Lshot = 60;
+					Lshotdir = FaceDirection;
+				}
+				if(Lshot > 0){
+					Lshot --;
+				}
+
+				//Check Projectiles	
+				if(stats.TotalProjectilesHitBy != Shit || Player.IsStaggering){
+					List<gPlayer> Shooters = new List<gPlayer>();
+					foreach(gPlayer o in Players){
+						if(o.User != null && o != this && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) && o.Lshot > 0 && FacingPosition(pos,o.pos,o.Lshotdir)){
+							Shooters.Add(o);
+						}
+					}
+					CheckShooter(Shooters);
+					Shit = stats.TotalProjectilesHitBy;
+				}
+				
+				//Throwing Items
+				if(Player.IsThrowing){
+					foreach(IObject obj in Game.GetMissileObjects()){
+						if(throwBox.Contains(obj.GetWorldPosition()) && obj.CustomID == ""){
+							obj.CustomID = Name;
+						}
+					}
+					foreach(IObject obj in Game.GetObjectsByName("WpnMolotovsThrown")){
+						if(throwBox.Contains(obj.GetWorldPosition()) && obj.CustomID == ""){
+							obj.CustomID = Name;
+						}					
+					}
+				}
+				if(stats.TotalItemsThrown != Sthr){
+					Sthr = stats.TotalItemsThrown;
+					Lthr = 60;
+					Lthrdir = FaceDirection;
+				}
+				if(Lthr > 0){
+					Lthr --;
+				}
+
+				//Hit By Items
+				if(Player.IsDisabled){
+					foreach(gPlayer o in Players){
+						if(o.User != null && o != this && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) && o.Lthr > 0 && FacingPosition(pos,o.pos,o.Lthrdir)){
+							LAttacker = o;
+						}
+					}
+				}
+
+				//Check Fire
+				if(FireDamage != stats.TotalFireDamageTaken){
+					foreach(gPlayer o in Players){
+						if(o.User != null && o.Player != null && o != this && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) && FacingPosition(pos,o.pos,o.Lshotdir) && o.Player.CurrentPrimaryWeapon.WeaponItem == WeaponItem.FLAMETHROWER && (o.Player.IsHipFiring || o.Player.IsManualAiming)){
+							LAttacker = o;
+						}
+					}
+					if(LfireAttacker != null){
+						LAttacker = LfireAttacker;
+					}
+					FireDamage = stats.TotalFireDamageTaken;
+				}
+				
+				if(Lfir > 0){
+					Lfir --;
+				}else{
+					LfireAttacker = null;
+				}
+				
+				//Check Explosion			
+				if(ExplosionDamage != stats.TotalExplosionDamageTaken){
+					if(LexpAttacker != null){
+						LAttacker = LexpAttacker;
+					}
+					foreach(gPlayer o in Players){
+						if(o.User != null && o.Player != null && (o.Player.IsHipFiring || o.Player.IsManualAiming) && o.Player.CurrentPrimaryWeapon.WeaponItem == WeaponItem.GRENADE_LAUNCHER){
+							LAttacker = o;
+						}
+					}	
+					ExplosionDamage = stats.TotalExplosionDamageTaken;
+				}
+				
+				if(Lexp > 0){
+					Lexp --;
+				}else{
+					LexpAttacker = null;
+				}
+				
+				//Near Explosives
+				foreach(IObject obj in Game.GetObjectsByArea(expBox)){
+					if(obj.Name.Contains("Mine") || obj.Name.Contains("Grenade") || obj.Name.Contains("C4")){
+						if(obj.CustomID != "" && obj.CustomID != Name){
+							foreach(gPlayer o in Players){
+								if(o.User != null && o.Name == obj.CustomID && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) ){
+									LexpAttacker = o;
+									Lexp = 60;
+								}
+							}
+						}
+					}
+					if(obj.Name == "WpnMolotovsThrown"){
+						if(obj.CustomID != "" && obj.CustomID != Name){
+							foreach(gPlayer o in Players){
+								if(o.User != null && o.Name == obj.CustomID && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) ){
+									LfireAttacker = o;
+									Lfir = 60;
+								}
+							}
+						}					
+					}
+				}
+
+				//Check Melee
+				if(MeleeDamage != stats.TotalMeleeDamageTaken){
+					foreach(IPlayer ply in Game.GetPlayers()){
+						if((User.GetTeam() != ply.GetTeam() || ply.GetTeam() == PlayerTeam.Independent) && ply != Player && WithinRange(ply.GetWorldPosition(),pos) && (ply.IsMeleeAttacking || ply.IsJumpAttacking || ply.IsJumpKicking || ply.IsKicking)){
+							LAttacker = GetgPlayer(ply);
+						}
+					}
+					MeleeDamage = stats.TotalMeleeDamageTaken;
+				}
+				
+				//Grabbed
+				if(Player.IsCaughtByPlayerInGrab){
+					foreach(gPlayer o in Players){
+						if(o.User != null && o.Player != null && o.Player.UniqueID == Player.CaughtByPlayerInGrabID && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) ){
+							LAttacker = o;
+						}
+					}
+				}
+
+				//Dived
+				if(Player.IsCaughtByPlayerInDive){
+					foreach(gPlayer o in Players){
+						if(o.User != null && o.Player != null && o.Player.UniqueID == Player.CaughtByPlayerInDiveID && (o.User.GetTeam() != User.GetTeam() || o.User.GetTeam() == PlayerTeam.Independent) ){
+							LAttacker = o;
+						}
+					}
+				}
+				
+				//Check Rockets
+				if(Player.IsRocketRiding){
+					foreach(gPlayer o in Players){
+						if(o.User != null && o.Player != null && (o.Player.IsHipFiring || o.Player.IsManualAiming) && o.Player.CurrentPrimaryWeapon.WeaponItem == WeaponItem.BAZOOKA){
+							LAttacker = o;
+						}
+					}				
+				}
+				
+				//Prepare Player
+				if(Player.IsDead){
+					ReadyForDeath = true;
+				}
+
+			}else if(!IsDead && ReadyForDeath){
+
+				TriggerDeath(LAttacker,this);
+				
+				RespawnTimer = DM_RESPAWNTIMER;
+				
+				//Gibber Explosion
+				if(DM_INSTAGIB == 1){
+					Player.Gib();
+
+					int t = rnd.Next(5,20);
+					for(int i = 0; i < t; i ++){
+						IObject gib = Game.CreateObject("Giblet0" + rnd.Next(0,4),pos);
+						gib.SetLinearVelocity(phys + new Vector2((float)Math.Cos(MathHelper.TwoPI * ((float)i / t)), (float)Math.Sin(MathHelper.TwoPI * ((float)i / t))) * rnd.Next(5,10) );
+						gib.SetAngle(rnd.Next(0,360) * (MathHelper.PI / 180));
+						gib.SetAngularVelocity(rnd.Next(-4,4));
+					}
+				}
+
+			}
+		}
+	}
+	
+	public void CheckShooter(List<gPlayer> Shooters){
+		List<Line> HitBox = new List<Line>();
+		float Scale = 8;
+		Area aHitBox = new Area(pos.Y + Scale ,pos.X - Scale ,pos.Y - Scale ,pos.X + Scale );
+		HitBox.Add(new Line( new Vector2(pos.X - Scale , pos.Y + Scale ), new Vector2(pos.X + Scale , pos.Y + Scale ) ) );
+		HitBox.Add(new Line( new Vector2(pos.X - Scale , pos.Y + Scale ), new Vector2(pos.X - Scale , pos.Y - Scale ) ) );
+		HitBox.Add(new Line( new Vector2(pos.X - Scale , pos.Y - Scale ), new Vector2(pos.X + Scale , pos.Y - Scale ) ) );
+		HitBox.Add(new Line( new Vector2(pos.X + Scale , pos.Y - Scale ), new Vector2(pos.X + Scale , pos.Y + Scale ) ) );
+		
+		bool findAim = false;
+		float dist = -1;
+		foreach(gPlayer o in Shooters){
+			Line aim = new Line(o.pos,o.pos + o.Player.AimVector);
+
+			//Find Intersections in Aim / HitBox
+			foreach(Line l in HitBox){
+
+				Vector2 t = Line_HasIntersection(aim,l);
+
+				if(aHitBox.Contains(t)){			
+				
+					if(dist == -1 || PointDistance(pos,o.pos) < dist || !findAim){
+						dist = PointDistance(pos,o.pos);
+						LAttacker = o;
+						findAim = true; 
+					}
+					
+					break;
+				}
+			}
+			
+			//Nothing Found, Default To Nearest Player
+			if(!findAim){
+				if(dist == -1 || PointDistance(pos,o.pos) < dist){
+					LAttacker = o;
+				}				
+			}
+			
+		}
+		
+	}
+	
+	public void checkNULL(){
+		if(User != null && User.IsRemoved){
+			if(Player != null && !Player.IsRemoved && !Player.IsDead){
+				Player.Kill();
+			}
+			User = null;
+			
+			TeamSizes[(int)Team] --;
+		}
+	}
+}
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	Helper Functions
+
+*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+public static void TriggerDeath(gPlayer killer,gPlayer victim){
+	if(!Game.IsGameOver){
+		if(!victim.IsDead){
+			if(killer != null){
+				killer.Kills += 1;
+				killer.CurrentKills += 1;
+
+				if(killer.CurrentKills > killer.HighestKills){
+					killer.HighestKills = killer.CurrentKills;
+				}
+				
+				if(DM_KILLSTREAKS == 1){
+					ShowKillstreak(killer.Name,killer.CurrentKills);
+				}
+			}
+			victim.IsDead = true;
+			victim.Deaths += 1;
+			
+			victim.CurrentKills = 0;
+		}
+	}
+}
+
+public static bool WithinRange(Vector2 pos,Vector2 pos2){
+	if(pos2.X - 32 <= pos.X && pos.X <= pos2.X + 32 && pos2.Y - 32 <= pos.Y && pos.Y <= pos2.Y + 32){
+		return true;
+	}else{
+		return false;
+	}
+}
+
+public static bool FacingPosition(Vector2 pos,Vector2 pos2,int Dir){
+	if((pos.X < pos2.X && Dir == -1) || (pos.X > pos2.X && Dir == 1)){
+		return true;
+	}else{
+		return false;
+	}
+}
+
+public static IObject GetPrioritySpawn(){
+	IObject ret = null;
+	float dist  = -1;
+	
+	foreach(IObject obj in Game.GetObjectsByName("SpawnPlayer")){
+		Vector2 pos = obj.GetWorldPosition();
+		float mydist = -1;
+		
+		foreach(IPlayer ply in Game.GetPlayers()){
+			if(!ply.IsDead){
+				Vector2 comp = ply.GetWorldPosition();
+				float plydist = (float)Math.Abs(Math.Sqrt(Math.Pow(pos.X - comp.X,2) + Math.Pow(pos.Y - comp.Y,2)));				
+						
+				if(mydist == -1 || mydist > plydist){
+					mydist = plydist;
+				}
+			}
+		}
+	
+		if(dist == -1 || dist < mydist){
+			ret = obj;
+			dist = mydist;
+		}
+	}
+	
+	return ret;
+}
+
+public static gPlayer GetgPlayer(IPlayer Player){
+	gPlayer temp = null;
+	
+	foreach(gPlayer o in Players){
+		if(o.User != null && o.Player == Player){
+			temp = o;
+			break;
+		}
+	}
+	
+	return temp;
+}
+
+public static WeaponItem GetGunGameItem(int Kills){
+	if(Kills < GUNGAME_ITEMS.Length){
+		return GUNGAME_ITEMS[Kills];
+	}else{
+		return WeaponItem.NONE;
+	}
+}
+
+public static void ShowKillstreak(string Name, int Kills){
+	string Message = "";
+
+	switch(Kills){
+		case 3:
+			Message = Name + " Is On A Killing Spree";
+		break;
+		case 5:
+			Message = Name + " Is On A Rampage";
+		break;
+		case 7:
+			Message = Name + " Is Dominating";
+		break;
+		case 10:
+			Message = Name + " Is Unstoppable";
+		break;
+		case 15:
+			Message = Name + " Is Godlike";
+		break;
+	}
+
+	Game.RunCommand("/msg " + Message);
+}
+
+public static int[] GetArrangedArray(int num,int Maximum){
+	List<int> Arr = new List<int>();
+		
+	while(Arr.Count < num){
+		int x = rnd.Next(0,Maximum);
+		if(!Arr.Contains(x)){
+			Arr.Add(x);
+		}else{
+			x = 0;
+			while(Arr.Contains(x)){
+				x ++;
+			}
+			if(x >= Maximum){
+				x = rnd.Next(0,Maximum);
+			}
+			Arr.Add(x);
+		}
+	}
+	
+	return Arr.ToArray();
+}
+
+public static IObjectText CreateText(string Text, Vector2 Position, Color color){
+	IObjectText txt = (IObjectText)Game.CreateObject("Text",Position);
+	txt.SetText(Text);
+	txt.SetTextScale(0.5f);
+	txt.SetTextAlignment(TextAlignment.Middle);
+	txt.SetTextColor(color);
+	
+	return txt;
+}
+
+public static string Shorten(string Item){
+	if(Item.Length >= 10){
+		Item = Item.Substring(0,7) + "...";
+	}
+	return Item;
+}
+
+public static Vector2 Line_HasIntersection(Line A, Line B){
+	 //Originally Written In C++, uses slope forumula	
+
+    //Using Formula y = mx + b
+    short typeA = 0;
+    short typeB = 0;
+
+    if(A.Point.X - A.Point2.X == 0){
+        //Vertical Line
+        typeA = 1;
+    }else if(A.Point.Y - A.Point2.Y == 0){
+        //Horizontal Line
+        typeA = 2;
+    }
+
+    if(B.Point.X - B.Point2.X == 0){
+        typeB = 1;
+    }else if(B.Point.Y - B.Point2.Y == 0){
+        typeB = 2;
+    }
+
+    //Slope, mx
+    float mA = 0;
+    float mB = 0;
+
+    //Height, b
+    float bA = 0;
+    float bB = 0;
+
+    //Find Line Type
+    switch(typeA){
+        case 0:
+            mA = (A.Point.Y - A.Point2.Y) / (A.Point.X - A.Point2.X);
+            bA = A.Point.Y - (mA) * A.Point.X;
+        break;
+        case 1:
+            mA = 0;
+            bA = A.Point.X;
+        break;
+        case 2:
+            mA = 0;
+            bA = A.Point.Y;
+        break;
+    }
+
+    switch(typeB){
+        case 0:
+            mB = (B.Point.Y - B.Point2.Y) / (B.Point.X - B.Point2.X);
+            bB = B.Point.Y - (mB) * B.Point.X;
+        break;
+        case 1:
+            mB = 0;
+            bB = B.Point.X;
+        break;
+        case 2:
+            mB = 0;
+            bB = B.Point.Y;
+        break;
+    }
+
+    //std::cout<< "1. y = " << mA << "x + " << bA << " \n";
+    //std::cout<< "2. y = " << mB << "x + " << bB << " \n";
+
+    //Use Slope Forumlas -- mx + b = mx + b
+    //Subsitute In Values-- mA + bA = mB + bB 
+    //Move Similar Values-- mA - mB = bB - bA
+
+    Vector2 Position = new Vector2(0,0);
+
+    if(typeA == 0 && typeB == 0){
+        float mX = mA - mB;
+        float bX = bB - bA;
+
+        //Find Intersect Location
+        float x = bX / mX;
+        float y = mA * x + bA;
+        Position = new Vector2(x,y);
+    }else{
+        //1 Line With Slope / 1 Without
+        if(typeA == 0){ 
+            if(typeB == 1){
+               Position = new Vector2( B.Point.X, mA * B.Point.X + bA);               
+            }
+            if(typeB == 2){
+					 Position = new Vector2( (B.Point.Y - bA) / mA, B.Point.Y);
+            }
+        }
+        if(typeB == 0){
+            if(typeA == 1){
+                Position = new Vector2( A.Point.X, mB * A.Point.X + bB);           
+				 }
+            if(typeA == 2){
+                Position = new Vector2( (A.Point.Y - bB) / mB, A.Point.Y); 
+            }
+        }
+        //No Slope
+        if(typeA != 0 && typeB != 0){
+            if(typeA == 1 && typeB == 2){
+                Position = new Vector2( A.Point.X, B.Point.Y);
+            }
+            if(typeA == 2 && typeB == 1){
+                Position = new Vector2( B.Point.X, A.Point.Y);
+            }
+            //Both Same
+            if(typeA == typeB){
+                return (new Vector2());
+            }
+        }
+    }
+
+    //Debug Show Intersect Location
+    //std::cout<< "Intersection At {" << Position.X << "," << Position.Y << "} \n";
+
+    return Position;
+}
+
+public static bool LineRange(float Num, float Av, float Dif){
+    return (Num > (Av - Dif) && Num < (Av + Dif));
+}
+
+public static float PointDistance(Vector2 Point, Vector2 Point2){
+    return (float)Math.Sqrt( Math.Pow( Point.X - Point2.X, 2) + Math.Pow( Point.Y - Point2.Y, 2));
+}
