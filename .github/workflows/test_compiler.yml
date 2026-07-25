@@ -5,7 +5,7 @@ on:
   # Ejecuta los tests cuando subas código a la rama dev
   push:
     branches: [ "dev" ]
-    
+
   # Ejecuta los tests cuando intentes fusionar dev con main
   pull_request:
     branches: [ "main" ]
@@ -34,6 +34,5 @@ jobs:
         run: dotnet build --no-restore
 
       # Ejecutar los tests
-      # Si un test falla aquí, este paso devuelve un error y detiene el flujo con una "X" roja.
-      - name: Ejecutar pruebas automáticas
-        run: dotnet test --no-build --verbosity normal
+      - name: Ejecutar tests
+        run: bash test/test_scripts.sh
