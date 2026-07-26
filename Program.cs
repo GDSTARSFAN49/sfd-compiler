@@ -70,6 +70,7 @@ var referenciasCompilador = new MetadataReference[]
     MetadataReference.CreateFromFile(typeof(System.Collections.Generic.Dictionary<,>).Assembly.Location),
     MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
     MetadataReference.CreateFromFile(typeof(Action).Assembly.Location),
+    MetadataReference.CreateFromFile(typeof(System.Timers.Timer).Assembly.Location),
     
     // Añadimos las referencias ubicadas dinamicamente en el directorio del nucleo
     MetadataReference.CreateFromFile(Path.Combine(directorioNucleoNet, "System.Collections.dll")),
