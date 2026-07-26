@@ -10,6 +10,9 @@ using Microsoft.CodeAnalysis.CSharp;
 // Inicializamos el constructor de la aplicacion web utilizando los argumentos del sistema
 var constructorAplicacion = WebApplication.CreateBuilder(args);
 
+// Evitamos que .NET intente usar FileSystemWatcher en el contenedor (soluciona el error de inotify en Render)
+constructorAplicacion.Configuration.Sources.Clear();
+
 // Añadimos el servicio de politicas CORS para permitir el trafico de red cruzado
 constructorAplicacion.Services.AddCors(opcionesCors => {
     
