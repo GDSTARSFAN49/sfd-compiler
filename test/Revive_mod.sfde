@@ -1,0 +1,43 @@
+// Revive Mod Script
+// Author: Ete_Sech
+
+// Respawn delay in milliseconds
+int RespawnDelay = 3000; 
+
+// On startup event handler
+public void OnStartup()
+{
+    // Player death event callback
+    Events.PlayerDeathCallback.Start((IPlayer player, PlayerDeathArgs args) =>
+    {
+        if (args.Killed) {
+            // Get player properties
+            IUser p_User = player.GetUser();
+            IProfile p_Profile = player.GetProfile();
+            string p_Name = player.Name;
+            PlayerModifiers p_Modifiers = player.GetModifiers();
+            PlayerTeam p_Team = player.GetTeam();
+
+            // Get random spawner
+            Random RND = new Random();
+            if (Game.GetObjectsByName("SpawnPlayer").Length < 1) { Game.CreateObject("SpawnPlayer", new Vector2(0,0));}
+            Vector2 Spawners = Game.GetObjectsByName("SpawnPlayer")[RND.Next(Game.GetObjectsByName("SpawnPlayer").Length)].GetWorldPosition();
+
+            // Create timer to respawn player
+            var timer = new System.Timers.Timer(RespawnDelay);
+            timer.AutoReset = false;
+            timer.Elapsed += (sender, e) => {
+                // Create new player
+                IPlayer cpu = Game.CreatePlayer(Spawners);
+                cpu.SetBotName(p_Name);
+                cpu.SetUser(p_User);
+                cpu.SetProfile(p_Profile);
+                cpu.SetModifiers(p_Modifiers);
+                cpu.SetTeam(p_Team);
+                cpu.SetHealth(p_Modifiers.MaxHealth);
+                player.Remove();
+            };
+            timer.Start();
+        }
+    });
+}
