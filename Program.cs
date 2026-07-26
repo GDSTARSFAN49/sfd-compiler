@@ -103,6 +103,7 @@ using System.Collections;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Timers;
 using SFDGameScriptInterface;
 
 public class GameScript : GameScriptInterface {
