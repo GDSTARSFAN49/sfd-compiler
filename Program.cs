@@ -116,8 +116,14 @@ public class GameScript : GameScriptInterface {
 }
 ";
 
+    // El juego real compila los scripts con el CSharpCodeProvider clasico de
+    // .NET Framework (csc.exe pre-Roslyn, tope C# 5), asi que capamos aqui el
+    // parseo a la misma version para no aceptar sintaxis que el juego rechazaria
+    // (interpolacion de strings, nameof, ?., catch...when, etc.)
+    var opcionesParseo = new CSharpParseOptions(LanguageVersion.CSharp5);
+
     // Convertimos el codigo de texto en un arbol sintactico estructurado
-    var arbolSintactico = CSharpSyntaxTree.ParseText(codigoEnvuelto);
+    var arbolSintactico = CSharpSyntaxTree.ParseText(codigoEnvuelto, opcionesParseo);
 
     // Creamos las opciones de compilacion indicando que queremos generar una libreria vinculada
     var opcionesCompilacion = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release);
