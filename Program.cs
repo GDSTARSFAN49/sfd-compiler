@@ -2,8 +2,10 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
+using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -31,11 +33,86 @@ aplicacionServidor.UseCors();
 // Definimos la ruta absoluta hacia la libreria original del juego
 var rutaLibreriaJuego = Path.Combine(AppContext.BaseDirectory, "SFD.GameScriptInterface.dll");
 
+// Definimos la ruta absoluta hacia el motor de scripts del juego para leer sus restricciones
+var rutaMotorScript = Path.Combine(AppContext.BaseDirectory, "SFD.ScriptEngine.dll");
+
 // Imprimimos en consola la ruta generada para facilitar la depuracion interna
-Console.WriteLine($"[DEBUG] Ruta absoluta de la DLL: {rutaLibreriaJuego}");
+Console.WriteLine($"[DEBUG] Ruta absoluta de la DLL (del SFD): {rutaLibreriaJuego}");
+Console.WriteLine($"[DEBUG] Ruta absoluta de la DLL (lista de baneados): {rutaMotorScript}");
 
 // Comprobamos fisicamente si el archivo de la libreria existe en el disco duro
 Console.WriteLine($"[DEBUG] ¿El archivo existe fisicamente?: {File.Exists(rutaLibreriaJuego)}");
+Console.WriteLine($"[DEBUG] ¿El archivo existe fisicamente?: {File.Exists(rutaMotorScript)}");
+
+// Inicializamos las variables donde guardaremos los datos extraidos dinamicamente
+string versionNetDetectada = "Desconocido";
+
+// Inicializamos las listas dinámicas de seguridad para el sandbox (con valores por defecto por seguridad)
+List<string> namespacesBaneadosDinamicos = new List<string> { "System.Threading", "System.Security.Cryptography", "System.Reflection" };
+List<string> tiposBaneadosDinamicos = new List<string>();
+List<string> tiposBlancosDinamicos = new List<string>();
+
+// Si el archivo del motor de scripts existe fisicamente en el disco duro
+if (File.Exists(rutaMotorScript)) {
+
+    try {
+        // Cargamos el ensamblado del motor en memoria para inspeccionar sus metadatos
+        var ensambladoMotor = Assembly.LoadFrom(rutaMotorScript);
+
+        // Extraemos la version exacta de .NET utilizando el atributo del framework objetivo
+        var atributoFramework = ensambladoMotor.GetCustomAttribute<TargetFrameworkAttribute>();
+
+        // Comprobamos que no sea null
+        if (atributoFramework != null) {
+
+            // Guardamos la version del .NET
+            versionNetDetectada = atributoFramework.FrameworkName;
+            Console.WriteLine($"[AUTO-CONFIG] Version de .NET leida de la DLL: {versionNetDetectada}");
+        }
+
+        // Escaneamos todas las clases del motor buscando los campos internos de seguridad
+        foreach (var tipo in ensambladoMotor.GetTypes()) {
+            
+            // Extraemos _bannedNamespaces de forma automatica
+            var campoNs = tipo.GetField("_bannedNamespaces", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+            if (campoNs?.GetValue(null) is System.Collections.IEnumerable coleccionNs) {
+                foreach (var item in coleccionNs) {
+                    if (item != null && !namespacesBaneadosDinamicos.Contains(item.ToString()!)) {
+                        namespacesBaneadosDinamicos.Add(item.ToString()!);
+                    }
+                }
+            }
+
+            // Extraemos _bannedTypes de forma automatica
+            var campoBt = tipo.GetField("_bannedTypes", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+            if (campoBt?.GetValue(null) is System.Collections.IEnumerable coleccionBt) {
+                foreach (var item in coleccionBt) {
+                    if (item != null && !tiposBaneadosDinamicos.Contains(item.ToString()!)) {
+                        tiposBaneadosDinamicos.Add(item.ToString()!);
+                    }
+                }
+            }
+
+            // Extraemos _whitelistedTypes de forma automatica
+            var campoWt = tipo.GetField("_whitelistedTypes", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+            if (campoWt?.GetValue(null) is System.Collections.IEnumerable coleccionWt) {
+                foreach (var item in coleccionWt) {
+                    if (item != null && !tiposBlancosDinamicos.Contains(item.ToString()!)) {
+                        tiposBlancosDinamicos.Add(item.ToString()!);
+                    }
+                }
+            }
+        }
+
+        // Mensaje de los resultados
+        Console.WriteLine($"[AUTO-CONFIG] Sandbox sincronizado: {namespacesBaneadosDinamicos.Count} namespaces y {tiposBaneadosDinamicos.Count} tipos bloqueados leidos de la DLL.");
+
+    } catch (Exception excepcionLecturaMotor) {
+
+        // Mensaje de error
+        Console.WriteLine($"[AUTO-CONFIG] Error al leer restricciones de la DLL: {excepcionLecturaMotor.Message}");
+    }
+}
 
 // Si el archivo de la libreria existe en la ruta especificada
 if (File.Exists(rutaLibreriaJuego)) {
@@ -86,10 +163,10 @@ var referenciasCompilador = new MetadataReference[]
     MetadataReference.CreateFromFile(rutaLibreriaJuego)
 };
 
-// Mapeamos la ruta raiz para que responda con un mensaje de estado de salud basico
-aplicacionServidor.MapGet("/", () => "[OK] La API del compilador de SFD esta online y operativa.");
-
+// Mapeamos la ruta raiz para que responda con el estado incluyendo la version de .NET leida de la DLL
+aplicacionServidor.MapGet("/", () => $"[OK] Compilador SFD operativo. Target .NET: {versionNetDetectada}");
 // Mapeamos la ruta de validacion que recibira las peticiones POST con el codigo
+
 aplicacionServidor.MapPost("/validate", (CargaUtilScript cargaUtil) =>
 {
     // Verificamos si el contenido de codigo recibido esta vacio o es nulo
@@ -120,10 +197,63 @@ public class GameScript : GameScriptInterface {
     // .NET Framework (csc.exe pre-Roslyn, tope C# 5), asi que capamos aqui el
     // parseo a la misma version para no aceptar sintaxis que el juego rechazaria
     // (interpolacion de strings, nameof, ?., catch...when, etc.)
-    var opcionesParseo = new CSharpParseOptions(LanguageVersion.CSharp5);
+    var opcionesParseo = new CSharpParseOptions(LanguageVersion.Latest);
 
     // Convertimos el codigo de texto en un arbol sintactico estructurado
     var arbolSintactico = CSharpSyntaxTree.ParseText(codigoEnvuelto, opcionesParseo);
+
+    // Dividimos el código en un array de líneas (teniendo en cuenta saltos de línea de Windows y Linux)
+    var lineasCodigo = cargaUtil.Code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+    // Iteramos sobre cada namespace prohibido que extrajimos dinámicamente del ensamblado del juego
+    foreach (var baneado in namespacesBaneadosDinamicos)
+    {
+        // Recorremos el código fuente del usuario línea por línea desde la primera hasta la última
+        for (int i = 0; i < lineasCodigo.Length; i++)
+        {
+            // Verificamos si la línea actual de texto contiene el namespace prohibido que estamos evaluando
+            if (lineasCodigo[i].Contains(baneado))
+            {
+                // Comprobamos si algún tipo de la lista blanca está presente en esta misma línea para eximir el baneo
+                bool estaExcepcionado = tiposBlancosDinamicos.Any(blanco => lineasCodigo[i].Contains(blanco));
+                
+                // Si la línea no cuenta con una excepción oficial de la whitelist, procedemos a bloquearla
+                if (!estaExcepcionado)
+                {
+                    // Retornamos inmediatamente una respuesta JSON indicando que el código falló el filtro de seguridad
+                    return Results.Json(new { 
+                        success = false, // Marcador booleano que indica que la validación ha fallado
+                        errors = new[] { new { line = i + 1, message = $"El namespace '{baneado}' está prohibido por el sandbox." } } // Objeto con la línea real (ajustada a base 1) y el mensaje de error
+                    });
+                }
+            }
+        }
+    }
+
+    // Iteramos sobre cada tipo o clase específica prohibida descubierta en el motor de scripts
+    foreach (var tipoBaneado in tiposBaneadosDinamicos)
+    {
+        // Recorremos de nuevo todo el código del usuario línea por línea para localizar el tipo bloqueado
+        for (int i = 0; i < lineasCodigo.Length; i++)
+        {
+            // Comprobamos si la línea de código analizada contiene el nombre del tipo no permitido
+            if (lineasCodigo[i].Contains(tipoBaneado))
+            {
+                // Revisamos si la lista blanca contiene alguna excepción aplicable en esta línea específica
+                bool estaExcepcionado = tiposBlancosDinamicos.Any(blanco => lineasCodigo[i].Contains(blanco));
+                
+                // Si el uso del tipo no está respaldado por la whitelist, bloqueamos la ejecución del validador
+                if (!estaExcepcionado)
+                {
+                    // Respondemos con un objeto JSON estructurado detallando la infracción del sandbox
+                    return Results.Json(new { 
+                        success = false, // Indicador de que el script no superó la validación
+                        errors = new[] { new { line = i + 1, message = $"El tipo '{tipoBaneado}' está prohibido por el sandbox." } } // Línea exacta detectada (i + 1) y el motivo del baneo
+                    });
+                }
+            }
+        }
+    }
 
     // Creamos las opciones de compilacion indicando que queremos generar una libreria vinculada
     var opcionesCompilacion = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release);
