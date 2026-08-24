@@ -1,3 +1,19 @@
+# Artefactos de compilacion: la imagen se construye desde cero dentro del contenedor
 bin/
 obj/
+
+# Historial de git, que no pinta nada en la imagen final
 .git/
+.github/
+
+# Log del servidor de pruebas
+server.log
+
+# Scripts de prueba y utilidades de desarrollo: no hacen falta para servir la API
+test/
+tools/
+help/
+
+# Documentacion
+*.md
+LICENSE
