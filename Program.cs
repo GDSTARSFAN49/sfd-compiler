@@ -1,11 +1,6 @@
 // Librerias a usar
-using System;
-using System.IO;
-using System.Linq;
-using Microsoft.CodeAnalysis;
-using Microsoft.AspNetCore.Http;
+using SFD_COMPILER.Sfd;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.CodeAnalysis.CSharp;
 
 // Inicializamos el constructor de la aplicacion web utilizando los argumentos del sistema
 var constructorAplicacion = WebApplication.CreateBuilder(args);
@@ -15,7 +10,7 @@ constructorAplicacion.Configuration.Sources.Clear();
 
 // Añadimos el servicio de politicas CORS para permitir el trafico de red cruzado
 constructorAplicacion.Services.AddCors(opcionesCors => {
-    
+
     // Configuramos la politica por defecto para aceptar cualquier origen, cabecera y metodo
     opcionesCors.AddDefaultPolicy(politica => {
         politica.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
@@ -28,159 +23,159 @@ var aplicacionServidor = constructorAplicacion.Build();
 // Activamos el uso de CORS en la aplicacion web
 aplicacionServidor.UseCors();
 
-// Definimos la ruta absoluta hacia la libreria original del juego
-var rutaLibreriaJuego = Path.Combine(AppContext.BaseDirectory, "SFD.GameScriptInterface.dll");
+// Leemos la variable de entorno que permite apuntar a otra carpeta de DLL, como la instalacion del juego
+var directorioDll = Environment.GetEnvironmentVariable("SFD_DLL_DIR");
 
-// Imprimimos en consola la ruta generada para facilitar la depuracion interna
-Console.WriteLine($"[DEBUG] Ruta absoluta de la DLL: {rutaLibreriaJuego}");
+// Si no se ha configurado nada, usamos la carpeta donde vive el propio ejecutable
+if (string.IsNullOrWhiteSpace(directorioDll)) directorioDll = AppContext.BaseDirectory;
 
-// Comprobamos fisicamente si el archivo de la libreria existe en el disco duro
-Console.WriteLine($"[DEBUG] ¿El archivo existe fisicamente?: {File.Exists(rutaLibreriaJuego)}");
+// Arrancamos el motor real del juego: el es quien decide que esta permitido y que no
+var motorSfd = new MotorSfd(directorioDll);
 
-// Si el archivo de la libreria existe en la ruta especificada
-if (File.Exists(rutaLibreriaJuego)) {
-    try {
-        
-        // Intentamos extraer la informacion del ensamblado de la libreria
-        var informacionEnsamblado = System.Reflection.AssemblyName.GetAssemblyName(rutaLibreriaJuego);
+// Volcamos por consola el estado del arranque para poder diagnosticar despliegues a simple vista
+Console.WriteLine("========== COMPILADOR SFD ==========");
+// Mostramos en que carpeta se han buscado los ficheros del juego
+Console.WriteLine($"[DLL] Carpeta de DLL del juego : {motorSfd.DirectorioDll}");
 
-        // Informamos por consola que la lectura ha sido exitosa mostrando su version
-        Console.WriteLine($"[DEBUG] ¡DLL leida con exito! Nombre: {informacionEnsamblado.Name}, Version: {informacionEnsamblado.Version}");
-        
-    } catch (Exception excepcionLectura) {
-        
-        // Capturamos e imprimimos cualquier error ocurrido durante la lectura del ensamblado
-        Console.WriteLine($"[DEBUG] Error al leer DLL: {excepcionLectura.Message}");
+// Mostramos la huella del motor de scripts, o un aviso claro si no aparece
+Console.WriteLine($"[DLL] Motor de scripts         : {(File.Exists(motorSfd.RutaMotor) ? motorSfd.HuellaMotor : "NO ENCONTRADO")}");
+
+// Mostramos lo mismo para la libreria de API del juego
+Console.WriteLine($"[DLL] API del juego            : {(File.Exists(motorSfd.RutaApi) ? motorSfd.HuellaApi : "NO ENCONTRADA")}");
+
+if (motorSfd.Disponible)
+{
+    // Con el motor cargado ya sabemos exactamente que reglas aplica esta version del juego
+    Console.WriteLine($"[OK ] Motor cargado (compilado para {motorSfd.FrameworkMotor})");
+
+    // Resumimos el tamano de las tres listas que gobiernan el sandbox
+    Console.WriteLine($"[OK ] Sandbox: {motorSfd.NamespacesBaneados.Count} namespaces prohibidos, "
+                    + $"{motorSfd.TiposBaneados.Count} tipos prohibidos, {motorSfd.TiposPermitidos.Count} tipos en lista blanca");
+
+    // Indicamos cuantos tipos quedan vetados por namespace y como se ha calculado esa cifra
+    Console.WriteLine($"[OK ] Tipos vetados por namespace: {motorSfd.TotalTiposBaneadosPorNamespace} ({motorSfd.OrigenListaPorNamespace})");
+
+    // Decimos si la plantilla sale del DLL del juego o del respaldo interno
+    Console.WriteLine($"[OK ] Plantilla del script: {motorSfd.OrigenCabecera}");
+
+    // Y sobre todo de donde salen las referencias, que es lo que fija que APIs de .NET ve el script.
+    // Si no hemos encontrado la carpeta de la version correcta lo marcamos como aviso, no como exito:
+    // en ese caso el compilador aceptaria APIs mas nuevas de las que el juego tiene.
+    var marcaReferencias = motorSfd.OrigenReferencias.StartsWith("AVISO") ? "[!! ]" : "[OK ]";
+    Console.WriteLine($"{marcaReferencias} Referencias de compilacion: {motorSfd.Referencias.Count} ({motorSfd.OrigenReferencias})");
+
+    // Si falta esa carpeta, decimos exactamente que comando la deja lista
+    if (motorSfd.OrigenReferencias.StartsWith("AVISO"))
+    {
+        Console.WriteLine($"[!! ] Ejecuta: ./tools/actualizar-sfd.sh \"<carpeta del juego>\"  para descargar {motorSfd.MonikerFramework}");
     }
 }
-
-// Obtenemos el directorio raiz donde residen las librerias del nucleo de .NET
-string? directorioNucleoNet = Path.GetDirectoryName(typeof(object).Assembly.Location);
-
-// Verificamos que el directorio del nucleo haya sido localizado correctamente
-if (directorioNucleoNet == null) {
-    
-    // Lanzamos una excepcion critica si no podemos encontrar el entorno de ejecucion
-    throw new Exception("Error critico: No se pudo localizar el nucleo de .NET");
-}
-
-// Preparamos un arreglo con todas las referencias de metadatos necesarias para el compilador
-var referenciasCompilador = new MetadataReference[]
+else
 {
-    // Añadimos las referencias basicas y estructurales del sistema
-    MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-    MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-    MetadataReference.CreateFromFile(typeof(System.Collections.Generic.Dictionary<,>).Assembly.Location),
-    MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location),
-    MetadataReference.CreateFromFile(typeof(Action).Assembly.Location),
-    MetadataReference.CreateFromFile(typeof(System.Timers.Timer).Assembly.Location),
-    MetadataReference.CreateFromFile(typeof(System.ComponentModel.Component).Assembly.Location),
-    
-    // Añadimos las referencias ubicadas dinamicamente en el directorio del nucleo
-    MetadataReference.CreateFromFile(Path.Combine(directorioNucleoNet, "System.Collections.dll")),
-    MetadataReference.CreateFromFile(Path.Combine(directorioNucleoNet, "System.Runtime.dll")),
-    MetadataReference.CreateFromFile(Path.Combine(directorioNucleoNet, "System.Text.RegularExpressions.dll")),
-    MetadataReference.CreateFromFile(Path.Combine(directorioNucleoNet, "mscorlib.dll")),
-    
-    // Añadimos la referencia principal a la libreria del juego Superfighters Deluxe
-    MetadataReference.CreateFromFile(rutaLibreriaJuego)
-};
+    // Sin motor la API sigue en pie, pero avisa en cada peticion de que no puede validar nada
+    Console.WriteLine($"[ERR] {motorSfd.MotivoNoDisponible}");
+}
+Console.WriteLine("====================================");
 
-// Mapeamos la ruta raiz para que responda con un mensaje de estado de salud basico
-aplicacionServidor.MapGet("/", () => "[OK] La API del compilador de SFD esta online y operativa.");
+// Mapeamos la ruta raiz para que responda con el estado operativo completo del compilador
+aplicacionServidor.MapGet("/", () => Results.Json(new
+{
+    estado = motorSfd.Disponible ? "operativo" : "sin motor",
+    motivo = motorSfd.Disponible ? null : motorSfd.MotivoNoDisponible,
+    motor = new
+    {
+        framework = motorSfd.FrameworkMotor,
+        huellaMotor = motorSfd.HuellaMotor,
+        huellaApi = motorSfd.HuellaApi,
+        carpeta = motorSfd.DirectorioDll,
+        plantilla = motorSfd.OrigenCabecera,
+        referencias = motorSfd.OrigenReferencias,
+        ensambladoJuego = string.IsNullOrEmpty(motorSfd.RutaJuego) ? null : Path.GetFileName(motorSfd.RutaJuego)
+    },
+    sandbox = new
+    {
+        namespacesProhibidos = motorSfd.NamespacesBaneados.Count,
+        tiposProhibidos = motorSfd.TiposBaneados.Count,
+        tiposPermitidos = motorSfd.TiposPermitidos.Count,
+        tiposVetadosPorNamespace = motorSfd.TotalTiposBaneadosPorNamespace,
+        origen = motorSfd.OrigenListaPorNamespace
+    }
+}));
 
-// Mapeamos la ruta de validacion que recibira las peticiones POST con el codigo
+// Mapeamos una ruta que expone las reglas completas leidas del juego, util para editores y documentacion
+aplicacionServidor.MapGet("/sandbox", () => Results.Json(new
+{
+    disponible = motorSfd.Disponible,
+    namespacesProhibidos = motorSfd.NamespacesBaneados.OrderBy(x => x, StringComparer.Ordinal),
+    tiposProhibidos = motorSfd.TiposBaneados.OrderBy(x => x, StringComparer.Ordinal),
+    tiposPermitidos = motorSfd.TiposPermitidos.OrderBy(x => x, StringComparer.Ordinal),
+    palabrasReservadas = motorSfd.PalabrasReservadas.OrderBy(x => x, StringComparer.Ordinal),
+    callbacksHeredados = motorSfd.CallbacksHeredados,
+    referencias = motorSfd.Referencias.Select(Path.GetFileName)
+}));
+
+// Mapeamos la ruta de validacion que recibira las peticiones POST enviadas con el codigo fuente
 aplicacionServidor.MapPost("/validate", (CargaUtilScript cargaUtil) =>
 {
-    // Verificamos si el contenido de codigo recibido esta vacio o es nulo
+    // Verificamos si el contenido de codigo recibido esta vacio o es completamente nulo
     if (string.IsNullOrWhiteSpace(cargaUtil.Code))
     {
-        // Devolvemos una respuesta de error indicando la falta de codigo fuente
+        // Devolvemos una respuesta de error en formato JSON indicando la falta absoluta de codigo fuente
         return Results.Json(new { success = false, message = "No se envio ningun codigo." });
     }
 
-    // Construimos una plantilla de clase valida para envolver el codigo del usuario
-    string codigoEnvuelto = @"
-using System;
-using System.Collections.Generic;
-using System.Collections;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Timers;
-using SFDGameScriptInterface;
+    // Delegamos toda la validacion en el motor del juego: sandbox de seguridad primero y compilacion despues
+    var resultado = motorSfd.Validar(cargaUtil.Code);
 
-public class GameScript : GameScriptInterface {
-    public GameScript() : base(null) {}
-" + cargaUtil.Code + @"
-}
-";
-
-    // El juego real compila los scripts con el CSharpCodeProvider clasico de
-    // .NET Framework (csc.exe pre-Roslyn, tope C# 5), asi que capamos aqui el
-    // parseo a la misma version para no aceptar sintaxis que el juego rechazaria
-    // (interpolacion de strings, nameof, ?., catch...when, etc.)
-    var opcionesParseo = new CSharpParseOptions(LanguageVersion.CSharp5);
-
-    // Convertimos el codigo de texto en un arbol sintactico estructurado
-    var arbolSintactico = CSharpSyntaxTree.ParseText(codigoEnvuelto, opcionesParseo);
-
-    // Creamos las opciones de compilacion indicando que queremos generar una libreria vinculada
-    var opcionesCompilacion = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release);
-
-    // Configuramos la sesion de compilacion con su nombre, el arbol y las referencias
-    var sesionCompilacion = CSharpCompilation.Create(
-        "SFD_Script_Assembly",
-        syntaxTrees: new[] { arbolSintactico },
-        references: referenciasCompilador,
-        options: opcionesCompilacion
-    );
-
-    // Emitimos la compilacion hacia un flujo nulo, ya que solo queremos el analisis
-    var resultadoCompilacion = sesionCompilacion.Emit(Stream.Null);
-    
-    // Definimos la compensacion de lineas por el envoltorio de la clase inyectada
-    int compensacionCabecera = 11;
-
-    // Filtramos los diagnosticos de Roslyn quedandonos unicamente con los errores severos
-    var listaCompletaErrores = resultadoCompilacion.Diagnostics
-        .Where(diagnostico => diagnostico.Severity == DiagnosticSeverity.Error)
-        .Select(error => {
-            
-            // Extraemos la ubicacion fisica del error subyacente
-            var ubicacionError = error.Location.GetLineSpan();
-            
-            // Calculamos la linea real visible para el usuario en su editor
-            int lineaReal = Math.Max(1, ubicacionError.StartLinePosition.Line - compensacionCabecera); 
-
-            // Construimos el objeto anonimo con la linea y el mensaje original del compilador
-            return new { 
-                line = lineaReal, 
-                message = error.GetMessage() 
-            };
-        })
-        .ToList();
-
-    // Si la compilacion nativa fue exitosa y no se encontraron errores
-    if (resultadoCompilacion.Success)
+    // Devolvemos el veredicto junto al detalle de errores y advertencias en el formato que ya consumen los clientes
+    return Results.Json(new
     {
-        // Devolvemos un estado positivo junto a un arreglo vacio de errores
-        return Results.Json(new { success = true, errors = Array.Empty<object>() });
-    }
+        // Bandera principal que indica si el script funcionaria dentro del juego
+        success = resultado.Exito,
 
-    // En caso de fallos, devolvemos el estado negativo y toda la coleccion unificada de errores
-    return Results.Json(new { success = false, errors = listaCompletaErrores });
+        // Problemas que impiden que el script se ejecute
+        errors = resultado.Errores.Select(error => new
+        {
+            // Linea del codigo original del usuario
+            line = error.Linea,
+
+            // Columna donde empieza el fragmento senalado
+            column = error.ColumnaInicio,
+
+            // Codigo del compilador, vacio si el problema lo ha detectado el sandbox
+            code = error.Codigo,
+
+            // Explicacion del problema
+            message = error.Mensaje
+        }),
+
+        // Avisos que no invalidan el script pero conviene mostrar en el editor
+        warnings = resultado.Advertencias.Select(advertencia => new
+        {
+            // Linea del codigo original del usuario
+            line = advertencia.Linea,
+
+            // Columna donde empieza el fragmento senalado
+            column = advertencia.ColumnaInicio,
+
+            // Codigo del compilador
+            code = advertencia.Codigo,
+
+            // Explicacion del aviso
+            message = advertencia.Mensaje
+        })
+    });
 });
 
-// Recuperamos el puerto de las variables de entorno o asignamos el predeterminado
+// Recuperamos el puerto de escucha configurado en las variables de entorno o asignamos el predeterminado
 var puertoServidor = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
-// Iniciamos la escucha de la aplicacion en todas las interfaces de red disponibles
+// Iniciamos la escucha activa de la aplicacion web en todas las interfaces de red disponibles
 aplicacionServidor.Run($"http://0.0.0.0:{puertoServidor}");
 
-// Declaramos la clase base que modelara el cuerpo JSON de la peticion HTTP
+// Declaramos la clase auxiliar que modelara y deserializara el cuerpo JSON de la peticion HTTP entrante
 public class CargaUtilScript
 {
-    // Propiedad que almacenara el codigo fuente original enviado por el editor
+    // Propiedad publica que almacenara el codigo fuente original enviado por el cliente o editor
     public string? Code { get; set; }
 }

@@ -10,7 +10,7 @@ sleep 1
 echo "Iniciando servidor API para pruebas..."
 
 # 1. Iniciamos la aplicacion web en segundo plano redirigiendo toda la salida a nulo
-dotnet run >/dev/null 2>&1 &
+dotnet run > server.log 2>&1 &
 
 # Capturamos el identificador unico (PID) del proceso del servidor web lanzado
 SERVER_PID=$!

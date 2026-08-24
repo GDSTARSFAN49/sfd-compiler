@@ -6,7 +6,7 @@ WORKDIR /src
 COPY ["SFD-COMPILER.csproj", "./"]
 RUN dotnet restore "SFD-COMPILER.csproj"
 
-# Copiamos el resto de tus archivos (Program.cs, la DLL de SFD, etc.)
+# Copiamos el resto de tus archivos (Program.cs, las DLL de SFD, etc.)
 COPY . .
 
 # Compilamos tu proyecto en modo "Release" (optimizado para velocidad) y lo metemos en la carpeta /app/publish
@@ -19,8 +19,10 @@ WORKDIR /app
 # Copiamos el resultado de la ETAPA 1 a esta nueva máquina
 COPY --from=build /app/publish .
 
-# Nos aseguramos de copiar la DLL del juego al directorio final,
-COPY ["SFD.GameScriptInterface.dll", "."]
+# Nos aseguramos de copiar las DLL del juego al directorio final.
+# SFD.GameScriptInterface.dll aporta la API (IGame, IPlayer...) y SFD.ScriptEngine.dll aporta
+# el sandbox real: lista negra de namespaces/tipos, lista blanca y el compilador del juego.
+COPY ["SFD.GameScriptInterface.dll", "SFD.ScriptEngine.dll", "./"]
 
 # Exponemos el puerto estándar 8080 (Render usa esto por detrás)
 EXPOSE 8080

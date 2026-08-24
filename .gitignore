@@ -1,2 +1,6 @@
+# Artefactos de compilacion de .NET
 bin/
 obj/
+
+# Log que deja test_scripts.sh al levantar el servidor de pruebas
+server.log
